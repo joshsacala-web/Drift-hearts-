@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body { margin:0; overflow:hidden; font-family:sans-serif; }
+body { margin:0; overflow:hidden; background:#87ceeb; }
 canvas { display:block; touch-action:none; }
 #ui{
  position:fixed;
@@ -11,7 +11,7 @@ canvas { display:block; touch-action:none; }
  width:100%;
  text-align:center;
  color:white;
- font-size:18px;
+ font-family:sans-serif;
  text-shadow:0 0 5px black;
 }
 </style>
@@ -20,10 +20,6 @@ canvas { display:block; touch-action:none; }
 
 <div id="ui">Score: 0</div>
 <canvas id="c"></canvas>
-
-<audio id="ocean" loop>
-<source src="https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8c8f6c7.mp3">
-</audio>
 
 <script>
 let c = document.getElementById("c");
@@ -34,151 +30,103 @@ c.height = innerHeight;
 
 let t = 0;
 let score = 0;
-let started = false;
 
-// player
+// player (SIDE MOVEMENT ONLY)
 let x = c.width/2;
-let y = c.height*0.75;
-let tx = x, ty = y;
+let speed = 0;
+let targetX = x;
 
-// items
-let items = [];
-let splashes = [];
+// ground levels
+let shoreY = c.height * 0.65;
 
-// audio
-let audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-function ping(freq){
- let o = audioCtx.createOscillator();
- let g = audioCtx.createGain();
- o.connect(g); g.connect(audioCtx.destination);
- o.frequency.value = freq;
- g.gain.value = 0.05;
- o.start();
- o.stop(audioCtx.currentTime + 0.1);
-}
+// shells
+let shells = [];
 
-// start
-c.addEventListener("touchstart", start);
-c.addEventListener("mousedown", start);
+// INPUT (tight)
+c.addEventListener("touchmove", e=>{
+ targetX = e.touches[0].clientX;
+});
+c.addEventListener("mousemove", e=>{
+ targetX = e.clientX;
+});
 
-function start(e){
- if(!started){
-   document.getElementById("ocean").volume = 0.3;
-   document.getElementById("ocean").play();
-   started = true;
- }
- move(e);
-}
-
-// movement
-c.addEventListener("touchmove", move);
-c.addEventListener("mousemove", move);
-
-function move(e){
- let px = e.touches ? e.touches[0].clientX : e.clientX;
- let py = e.touches ? e.touches[0].clientY : e.clientY;
- tx = px;
- ty = py;
-
- // splash if near water
- if(py < c.height*0.65){
-   splashes.push({x:px, y:py, r:0});
- }
-}
-
-// spawn
+// spawn shells near shoreline
 function spawn(){
- let types = ["❤️","🐚"];
- items.push({
+ shells.push({
    x: Math.random()*c.width,
-   y: c.height*0.65 + Math.random()*100,
-   vx:(Math.random()-0.5)*0.3,
-   emoji:types[Math.floor(Math.random()*2)]
+   y: shoreY + 20 + Math.random()*30,
+   hit:false
  });
 }
 
-// loop
 function loop(){
- t += 0.02;
+ t += 0.04;
 
  // SKY
  let sky = ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0,"#87ceeb");
- sky.addColorStop(1,"#fca");
+ sky.addColorStop(0,"#7ec8ff");
+ sky.addColorStop(1,"#ffd2a6");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
  // SUN
  ctx.beginPath();
  ctx.arc(c.width*0.8, 120 + Math.sin(t)*5, 40, 0, Math.PI*2);
- ctx.fillStyle="rgba(255,220,120,0.9)";
+ ctx.fillStyle = "rgba(255,220,120,0.9)";
  ctx.fill();
 
- // OCEAN DEPTH
- let ocean = ctx.createLinearGradient(0,c.height*0.5,0,c.height);
- ocean.addColorStop(0,"#3ba7d6");
- ocean.addColorStop(1,"#0b3c5d");
- ctx.fillStyle=ocean;
- ctx.fillRect(0,c.height*0.5,c.width,c.height);
+ // OCEAN
+ let ocean = ctx.createLinearGradient(0,shoreY-100,0,c.height);
+ ocean.addColorStop(0,"#3aa6d6");
+ ocean.addColorStop(1,"#0e3a5a");
+ ctx.fillStyle = ocean;
+ ctx.fillRect(0,shoreY-100,c.width,100);
 
- // WAVES + FOAM
+ // WAVES (rolling)
  ctx.beginPath();
- for(let px=0;px<c.width;px++){
-   let y = c.height*0.6 + Math.sin(px*0.02 + t)*10;
+ for(let px=0; px<c.width; px++){
+   let y = shoreY - 20 + Math.sin(px*0.02 + t)*10;
    ctx.lineTo(px,y);
  }
- ctx.strokeStyle="white";
- ctx.lineWidth=2;
+ ctx.strokeStyle = "white";
+ ctx.lineWidth = 2;
  ctx.stroke();
 
- // WET SAND
- ctx.fillStyle="#d2b48c";
- ctx.fillRect(0,c.height*0.6,c.width,50);
+ // SAND
+ ctx.fillStyle = "#f4d9a0";
+ ctx.fillRect(0,shoreY,c.width,c.height);
 
- // DRY SAND
- ctx.fillStyle="#f4d9a0";
- ctx.fillRect(0,c.height*0.65,c.width,c.height);
+ // movement (tight)
+ speed = (targetX - x) * 0.15;
+ x += speed;
 
- // player smoothing
- x += (tx-x)*0.08;
- y += (ty-y)*0.08;
+ // spawn shells
+ if(Math.random()<0.04) spawn();
 
- // glow when moving
- ctx.shadowBlur = 15;
- ctx.shadowColor = "white";
-
- ctx.font="32px sans-serif";
- ctx.fillText("❤️",x,y);
-
- ctx.shadowBlur = 0;
-
- // splashes
- splashes.forEach(s=>{
-   s.r+=2;
+ // shells
+ shells.forEach(s=>{
+   ctx.fillStyle="#d19c5c";
    ctx.beginPath();
-   ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-   ctx.strokeStyle="rgba(255,255,255,"+(1-s.r/30)+")";
-   ctx.stroke();
- });
- splashes = splashes.filter(s=>s.r<30);
+   ctx.arc(s.x, s.y, 6, 0, Math.PI*2);
+   ctx.fill();
 
- // spawn items
- if(Math.random()<0.03) spawn();
-
- items.forEach(o=>{
-   o.x+=o.vx;
-   ctx.fillText(o.emoji,o.x,o.y);
-
-   if(Math.abs(o.x-x)<25 && Math.abs(o.y-y)<25){
+   // collect
+   if(Math.abs(s.x - x) < 20){
      score++;
-     ping(600);
-     o.hit=true;
+     s.hit = true;
    }
  });
 
- items = items.filter(o=>!o.hit);
+ shells = shells.filter(s=>!s.hit);
 
- document.getElementById("ui").innerText="Score: "+score;
+ // player (simple character)
+ ctx.fillStyle="red";
+ ctx.beginPath();
+ ctx.arc(x, shoreY-10, 10, 0, Math.PI*2);
+ ctx.fill();
+
+ // UI
+ document.getElementById("ui").innerText = "Score: " + score;
 
  requestAnimationFrame(loop);
 }
