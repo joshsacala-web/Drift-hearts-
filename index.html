@@ -3,192 +3,184 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body {
-  margin:0;
-  overflow:hidden;
-  background: radial-gradient(circle at center, #0b1220, #020617);
-  font-family:sans-serif;
-  color:white;
-}
-
+body { margin:0; background:#020617; overflow:hidden; font-family:sans-serif; color:white; }
 #ui {
-  position:fixed;
-  top:10px;
-  width:100%;
-  text-align:center;
-  font-size:18px;
-  opacity:0.8;
+ position:fixed;
+ top:10px;
+ width:100%;
+ text-align:center;
+ font-size:20px;
 }
-
 #centerMsg{
-  position:fixed;
-  top:50%;
-  width:100%;
-  text-align:center;
-  font-size:26px;
-  transform:translateY(-50%);
-  white-space:pre-line;
-  opacity:0.9;
+ position:fixed;
+ top:50%;
+ width:100%;
+ text-align:center;
+ font-size:26px;
+ transform:translateY(-50%);
 }
-
-.heart {
-  position:absolute;
-  font-size:24px;
-  opacity:0.85;
-}
-
-#player {
-  position:absolute;
-  font-size:34px;
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%);
-  filter: drop-shadow(0 0 8px rgba(255,100,100,0.6));
-}
+canvas { display:block; }
 </style>
 </head>
 <body>
 
 <div id="ui">Score: 0</div>
-<div id="centerMsg">Tap to Drift ❤️</div>
-<div id="player">❤️</div>
+<div id="centerMsg">Drag & Release 💘</div>
+<canvas id="c"></canvas>
 
 <script>
-let player = document.getElementById("player");
-let hearts = [];
-let playing = false;
+let canvas = document.getElementById("c");
+let ctx = canvas.getContext("2d");
+
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+let cx = canvas.width/2;
+let cy = canvas.height/2;
+
+let boardRadius = Math.min(innerWidth, innerHeight)/3;
+
 let score = 0;
 
-// smooth movement
-let targetX = innerWidth/2;
-let targetY = innerHeight/2;
-let px = targetX;
-let py = targetY;
-
-// AUDIO (soft ambient tone)
-let ctx = new (window.AudioContext || window.webkitAudioContext)();
-let osc = null;
-
-function startMusic(){
-  osc = ctx.createOscillator();
-  let gain = ctx.createGain();
-
-  osc.type = "sine";
-  osc.frequency.value = 220;
-
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-
-  gain.gain.setValueAtTime(0.03, ctx.currentTime);
-  osc.start();
-}
-
-// start game
-document.body.addEventListener("click", () => {
-  if(playing) return;
-
-  playing = true;
-  score = 0;
-  hearts.forEach(h=>h.remove());
-  hearts = [];
-
-  document.getElementById("centerMsg").innerText = "";
-
-  startMusic();
-});
+let dart = null;
+let aiming = false;
+let startX, startY;
 
 // input
-document.addEventListener("mousemove", move);
-document.addEventListener("touchmove", move);
+canvas.addEventListener("mousedown", startAim);
+canvas.addEventListener("touchstart", startAim);
 
-function move(e){
-  targetX = e.touches ? e.touches[0].clientX : e.clientX;
-  targetY = e.touches ? e.touches[0].clientY : e.clientY;
+canvas.addEventListener("mouseup", shoot);
+canvas.addEventListener("touchend", shoot);
+
+function startAim(e){
+ aiming = true;
+ let p = getPos(e);
+ startX = p.x;
+ startY = p.y;
 }
 
-// spawn drifting hearts
-function spawn(){
-  let h = document.createElement("div");
-  h.className = "heart";
+function shoot(e){
+ if(!aiming) return;
+ aiming = false;
 
-  let r = Math.random();
+ let p = getPos(e);
 
-  if(r > 0.9){
-    h.type = "gold";
-    h.innerHTML = "<span style='color:#ffd966;'>💛</span>";
-    h.value = 5;
-  } else {
-    h.type = "normal";
-    h.innerHTML = "<span style='color:#ff6b6b;'>❤️</span>";
-    h.value = 1;
-  }
+ let dx = startX - p.x;
+ let dy = startY - p.y;
 
-  // spawn from edges
-  let edge = Math.floor(Math.random()*4);
-
-  if(edge === 0){ h.x = 0; h.y = Math.random()*innerHeight; }
-  if(edge === 1){ h.x = innerWidth; h.y = Math.random()*innerHeight; }
-  if(edge === 2){ h.x = Math.random()*innerWidth; h.y = 0; }
-  if(edge === 3){ h.x = Math.random()*innerWidth; h.y = innerHeight; }
-
-  // drifting velocity
-  h.vx = (Math.random()-0.5)*1.2;
-  h.vy = (Math.random()-0.5)*1.2;
-
-  h.style.left = h.x + "px";
-  h.style.top = h.y + "px";
-
-  document.body.appendChild(h);
-  hearts.push(h);
+ dart = {
+   x: startX,
+   y: startY,
+   vx: dx * 0.15,
+   vy: dy * 0.15,
+   active: true
+ };
 }
 
-// main loop
+function getPos(e){
+ if(e.touches){
+   return {x:e.touches[0].clientX, y:e.touches[0].clientY};
+ } else {
+   return {x:e.clientX, y:e.clientY};
+ }
+}
+
+// draw dartboard
+function drawBoard(){
+ ctx.beginPath();
+ ctx.arc(cx, cy, boardRadius, 0, Math.PI*2);
+ ctx.fillStyle = "#111827";
+ ctx.fill();
+
+ // rings
+ drawRing(0.9, "#1f2937"); // outer
+ drawRing(0.7, "#111827");
+ drawRing(0.5, "#1f2937");
+
+ // double ring
+ drawRing(0.95, "#ef4444");
+
+ // triple ring
+ drawRing(0.55, "#22c55e");
+
+ // bull
+ ctx.beginPath();
+ ctx.arc(cx, cy, boardRadius*0.1, 0, Math.PI*2);
+ ctx.fillStyle = "#ef4444";
+ ctx.fill();
+
+ ctx.beginPath();
+ ctx.arc(cx, cy, boardRadius*0.05, 0, Math.PI*2);
+ ctx.fillStyle = "#facc15";
+ ctx.fill();
+}
+
+function drawRing(r, color){
+ ctx.beginPath();
+ ctx.arc(cx, cy, boardRadius*r, 0, Math.PI*2);
+ ctx.strokeStyle = color;
+ ctx.lineWidth = 10;
+ ctx.stroke();
+}
+
+// scoring
+function getScore(x,y){
+ let dx = x - cx;
+ let dy = y - cy;
+ let dist = Math.sqrt(dx*dx + dy*dy);
+
+ if(dist > boardRadius) return 0;
+
+ let angle = Math.atan2(dy, dx);
+ let deg = (angle * 180/Math.PI + 360) % 360;
+
+ let sector = Math.floor(deg / 18); // 20 slices
+
+ let base = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5][sector];
+
+ if(dist < boardRadius*0.05) return 50;
+ if(dist < boardRadius*0.1) return 25;
+
+ if(dist > boardRadius*0.9) return base*2;
+ if(dist > boardRadius*0.5 && dist < boardRadius*0.6) return base*3;
+
+ return base;
+}
+
+// loop
 setInterval(()=>{
 
-  if(!playing) return;
+ ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // smooth follow (this is the relaxing part)
-  px += (targetX - px) * 0.05;
-  py += (targetY - py) * 0.05;
+ drawBoard();
 
-  player.style.left = px + "px";
-  player.style.top = py + "px";
+ // dart
+ if(dart && dart.active){
+   dart.x += dart.vx;
+   dart.y += dart.vy;
 
-  // spawn rate (gentle increase)
-  if(Math.random() < 0.03 + score*0.0005) spawn();
+   ctx.font = "24px sans-serif";
+   ctx.fillText("💘", dart.x, dart.y);
 
-  hearts.forEach(h => {
+   let dx = dart.x - cx;
+   let dy = dart.y - cy;
+   let dist = Math.sqrt(dx*dx + dy*dy);
 
-    h.x += h.vx;
-    h.y += h.vy;
+   if(dist < boardRadius){
+     let pts = getScore(dart.x, dart.y);
+     score += pts;
 
-    h.style.left = h.x + "px";
-    h.style.top = h.y + "px";
+     document.getElementById("ui").innerText = "Score: " + score + " (+"+pts+")";
 
-    // soft drift randomness
-    h.vx += (Math.random()-0.5)*0.05;
-    h.vy += (Math.random()-0.5)*0.05;
+     dart.active = false;
+   }
 
-    // collect
-    if(Math.abs(px - h.x) < 25 && Math.abs(py - h.y) < 25){
-      score += h.value;
-
-      // soft pulse effect
-      player.style.transform = "translate(-50%,-50%) scale(1.2)";
-      setTimeout(()=>player.style.transform="translate(-50%,-50%) scale(1)",100);
-
-      h.remove();
-    }
-
-    // remove far away
-    if(h.x < -50 || h.x > innerWidth+50 || h.y < -50 || h.y > innerHeight+50){
-      h.remove();
-    }
-  });
-
-  hearts = hearts.filter(h => h.isConnected);
-
-  document.getElementById("ui").innerText = "Score: " + score;
+   // stop if off screen
+   if(dart.x<0||dart.x>innerWidth||dart.y<0||dart.y>innerHeight){
+     dart.active = false;
+   }
+ }
 
 },30);
 </script>
