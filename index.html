@@ -13,6 +13,7 @@ canvas { display:block; }
  color:white;
  font-family:sans-serif;
  text-shadow:0 0 5px black;
+ font-size:20px;
 }
 </style>
 </head>
@@ -28,46 +29,47 @@ let ctx = c.getContext("2d");
 c.width = innerWidth;
 c.height = innerHeight;
 
-let last = 0;
 let score = 0;
+let playing = true;
 
 // player
-let x = c.width/2;
-let y = c.height*0.65;
-let vy = 0;
-let grounded = true;
+let player = {
+ x: 100,
+ y: c.height*0.65,
+ vy: 0,
+ grounded: true
+};
 
-// wave
-let waveX = -200;
-let waveSpeed = 300; // px/sec
+// waves
+let waves = [];
+let spawnTimer = 0;
 
-// audio
-let audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-function beep(freq, dur=0.1){
- let o = audioCtx.createOscillator();
- let g = audioCtx.createGain();
- o.connect(g); g.connect(audioCtx.destination);
- o.frequency.value = freq;
- g.gain.value = 0.05;
- o.start();
- o.stop(audioCtx.currentTime + dur);
-}
-
-// jump
-function jump(){
- if(grounded){
-   vy = -600;
-   grounded = false;
-   beep(500);
- }
-}
-document.addEventListener("mousedown", jump);
+// input
+document.addEventListener("keydown", e=>{
+ if(e.code === "Space" || e.code === "ArrowUp") jump();
+});
 document.addEventListener("touchstart", jump);
 
-// loop
-function loop(ts){
- let dt = (ts - last)/1000;
- last = ts;
+function jump(){
+ if(!playing) {
+   restart();
+   return;
+ }
+ if(player.grounded){
+   player.vy = -14;
+   player.grounded = false;
+ }
+}
+
+// restart
+function restart(){
+ score = 0;
+ waves = [];
+ playing = true;
+}
+
+// game loop
+function loop(){
 
  // SKY
  let sky = ctx.createLinearGradient(0,0,0,c.height);
@@ -76,7 +78,7 @@ function loop(ts){
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // OCEAN
+ // OCEAN (left side)
  ctx.fillStyle="#3aa6d6";
  ctx.fillRect(0,c.height*0.6,c.width,c.height);
 
@@ -84,64 +86,82 @@ function loop(ts){
  ctx.fillStyle="#f4d9a0";
  ctx.fillRect(0,c.height*0.65,c.width,c.height);
 
- // WAVE (smooth rolling)
- waveX += waveSpeed * dt;
-
+ // palm trees (simple)
+ ctx.fillStyle="#8b5a2b";
+ ctx.fillRect(300, c.height*0.55, 10, 80);
  ctx.beginPath();
- for(let i=0;i<80;i++){
-   let px = waveX + i*2;
-   let py = c.height*0.65 - Math.sin(i*0.2)*15;
-   if(i===0) ctx.moveTo(px,py);
-   else ctx.lineTo(px,py);
- }
- ctx.lineTo(waveX+160,c.height*0.65);
- ctx.lineTo(waveX,c.height*0.65);
- ctx.fillStyle="white";
+ ctx.arc(305, c.height*0.55, 25, 0, Math.PI*2);
+ ctx.fillStyle="green";
  ctx.fill();
 
- // foam glow
- ctx.shadowBlur = 15;
- ctx.shadowColor = "white";
- ctx.fill();
- ctx.shadowBlur = 0;
-
- // reset wave
- if(waveX > c.width + 100){
-   waveX = -200;
-   score++;
-   beep(800,0.12);
+ // spawn waves
+ if(playing){
+   spawnTimer--;
+   if(spawnTimer <= 0){
+     waves.push({
+       x: c.width,
+       width: 60 + Math.random()*40
+     });
+     spawnTimer = 80 + Math.random()*60;
+   }
  }
+
+ // waves
+ waves.forEach(w=>{
+   w.x -= 6;
+
+   // wave shape
+   ctx.beginPath();
+   ctx.moveTo(w.x, c.height*0.65);
+   ctx.quadraticCurveTo(
+     w.x + w.width/2,
+     c.height*0.65 - 30,
+     w.x + w.width,
+     c.height*0.65
+   );
+   ctx.fillStyle="white";
+   ctx.fill();
+
+   // collision
+   if(
+     player.x + 20 > w.x &&
+     player.x - 20 < w.x + w.width &&
+     player.y >= c.height*0.63
+   ){
+     playing = false;
+   }
+ });
+
+ // remove old waves
+ waves = waves.filter(w => w.x + w.width > 0);
 
  // physics
- vy += 1500 * dt;
- y += vy * dt;
+ player.vy += 0.8;
+ player.y += player.vy;
 
- if(y >= c.height*0.65){
-   y = c.height*0.65;
-   vy = 0;
-   grounded = true;
+ if(player.y >= c.height*0.65){
+   player.y = c.height*0.65;
+   player.vy = 0;
+   player.grounded = true;
  }
 
- // collision
- if(waveX < x+20 && waveX+160 > x-20 && y >= c.height*0.63){
-   score = 0;
-   beep(150,0.2);
- }
-
- // player (heart with glow)
+ // player
  ctx.font="40px sans-serif";
- ctx.shadowBlur = 10;
- ctx.shadowColor = "red";
- ctx.fillText("❤️", x-15, y);
- ctx.shadowBlur = 0;
+ ctx.fillText("❤️", player.x-15, player.y);
 
- // UI
- document.getElementById("ui").innerText = "Score: " + score;
+ // score
+ if(playing){
+   score += 0.05;
+ }
+
+ document.getElementById("ui").innerText =
+   playing ? "Score: " + Math.floor(score)
+           : "Game Over — Score: " + Math.floor(score) + " (tap to restart)";
 
  requestAnimationFrame(loop);
 }
 
-requestAnimationFrame(loop);
+loop();
 </script>
 
 </body>
