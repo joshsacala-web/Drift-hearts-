@@ -3,29 +3,30 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body { margin:0; background:#020617; overflow:hidden; font-family:sans-serif; color:white; }
-#ui {
- position:fixed;
- top:10px;
- width:100%;
- text-align:center;
- font-size:20px;
+body {
+  margin:0;
+  overflow:hidden;
+  background: linear-gradient(#ff9966, #2c3e50);
+  touch-action:none;
+  font-family:sans-serif;
 }
-#centerMsg{
+
+#msg{
  position:fixed;
  top:50%;
  width:100%;
  text-align:center;
- font-size:26px;
+ color:white;
+ font-size:22px;
  transform:translateY(-50%);
+ opacity:0.8;
 }
 canvas { display:block; }
 </style>
 </head>
 <body>
 
-<div id="ui">Score: 0</div>
-<div id="centerMsg">Drag & Release 💘</div>
+<div id="msg">Tap to Relax 🌊</div>
 <canvas id="c"></canvas>
 
 <script>
@@ -35,154 +36,123 @@ let ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-let cx = canvas.width/2;
-let cy = canvas.height/2;
+let t = 0;
+let started = false;
 
-let boardRadius = Math.min(innerWidth, innerHeight)/3;
+// player (floating heart)
+let x = canvas.width/2;
+let y = canvas.height/2;
+let tx = x;
+let ty = y;
 
-let score = 0;
+// ripple effects
+let ripples = [];
 
-let dart = null;
-let aiming = false;
-let startX, startY;
+// audio (soft waves)
+let ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+let noise, gain;
+
+function startSound(){
+  let bufferSize = 2 * ctxAudio.sampleRate;
+  let noiseBuffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+  let data = noiseBuffer.getChannelData(0);
+
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+
+  noise = ctxAudio.createBufferSource();
+  noise.buffer = noiseBuffer;
+  noise.loop = true;
+
+  let filter = ctxAudio.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 500;
+
+  gain = ctxAudio.createGain();
+  gain.gain.value = 0.02;
+
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctxAudio.destination);
+
+  noise.start();
+}
 
 // input
-canvas.addEventListener("mousedown", startAim);
-canvas.addEventListener("touchstart", startAim);
+canvas.addEventListener("touchstart", tap);
+canvas.addEventListener("mousedown", tap);
 
-canvas.addEventListener("mouseup", shoot);
-canvas.addEventListener("touchend", shoot);
+function tap(e){
+  if(!started){
+    started = true;
+    document.getElementById("msg").innerText = "";
+    startSound();
+  }
 
-function startAim(e){
- aiming = true;
- let p = getPos(e);
- startX = p.x;
- startY = p.y;
-}
+  let px = e.touches ? e.touches[0].clientX : e.clientX;
+  let py = e.touches ? e.touches[0].clientY : e.clientY;
 
-function shoot(e){
- if(!aiming) return;
- aiming = false;
+  tx = px;
+  ty = py;
 
- let p = getPos(e);
-
- let dx = startX - p.x;
- let dy = startY - p.y;
-
- dart = {
-   x: startX,
-   y: startY,
-   vx: dx * 0.15,
-   vy: dy * 0.15,
-   active: true
- };
-}
-
-function getPos(e){
- if(e.touches){
-   return {x:e.touches[0].clientX, y:e.touches[0].clientY};
- } else {
-   return {x:e.clientX, y:e.clientY};
- }
-}
-
-// draw dartboard
-function drawBoard(){
- ctx.beginPath();
- ctx.arc(cx, cy, boardRadius, 0, Math.PI*2);
- ctx.fillStyle = "#111827";
- ctx.fill();
-
- // rings
- drawRing(0.9, "#1f2937"); // outer
- drawRing(0.7, "#111827");
- drawRing(0.5, "#1f2937");
-
- // double ring
- drawRing(0.95, "#ef4444");
-
- // triple ring
- drawRing(0.55, "#22c55e");
-
- // bull
- ctx.beginPath();
- ctx.arc(cx, cy, boardRadius*0.1, 0, Math.PI*2);
- ctx.fillStyle = "#ef4444";
- ctx.fill();
-
- ctx.beginPath();
- ctx.arc(cx, cy, boardRadius*0.05, 0, Math.PI*2);
- ctx.fillStyle = "#facc15";
- ctx.fill();
-}
-
-function drawRing(r, color){
- ctx.beginPath();
- ctx.arc(cx, cy, boardRadius*r, 0, Math.PI*2);
- ctx.strokeStyle = color;
- ctx.lineWidth = 10;
- ctx.stroke();
-}
-
-// scoring
-function getScore(x,y){
- let dx = x - cx;
- let dy = y - cy;
- let dist = Math.sqrt(dx*dx + dy*dy);
-
- if(dist > boardRadius) return 0;
-
- let angle = Math.atan2(dy, dx);
- let deg = (angle * 180/Math.PI + 360) % 360;
-
- let sector = Math.floor(deg / 18); // 20 slices
-
- let base = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5][sector];
-
- if(dist < boardRadius*0.05) return 50;
- if(dist < boardRadius*0.1) return 25;
-
- if(dist > boardRadius*0.9) return base*2;
- if(dist > boardRadius*0.5 && dist < boardRadius*0.6) return base*3;
-
- return base;
+  ripples.push({x:px, y:py, r:0});
 }
 
 // loop
-setInterval(()=>{
+function loop(){
+  t += 0.01;
 
- ctx.clearRect(0,0,canvas.width,canvas.height);
+  // sky
+  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0,"#ff9966");
+  grad.addColorStop(1,"#2c3e50");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
- drawBoard();
+  // sun
+  ctx.beginPath();
+  ctx.arc(canvas.width/2, canvas.height*0.3 + Math.sin(t)*10, 40, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(255,200,120,0.8)";
+  ctx.fill();
 
- // dart
- if(dart && dart.active){
-   dart.x += dart.vx;
-   dart.y += dart.vy;
+  // waves
+  for(let i=0;i<3;i++){
+    ctx.beginPath();
+    for(let x=0;x<canvas.width;x++){
+      let y = canvas.height*0.6 + Math.sin(x*0.01 + t + i)*10 + i*20;
+      ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.stroke();
+  }
 
-   ctx.font = "24px sans-serif";
-   ctx.fillText("💘", dart.x, dart.y);
+  // smooth movement
+  x += (tx - x)*0.03;
+  y += (ty - y)*0.03;
 
-   let dx = dart.x - cx;
-   let dy = dart.y - cy;
-   let dist = Math.sqrt(dx*dx + dy*dy);
+  // floating effect
+  let float = Math.sin(t*2)*5;
 
-   if(dist < boardRadius){
-     let pts = getScore(dart.x, dart.y);
-     score += pts;
+  // heart
+  ctx.font = "30px sans-serif";
+  ctx.fillText("❤️", x, y + float);
 
-     document.getElementById("ui").innerText = "Score: " + score + " (+"+pts+")";
+  // ripples
+  ripples.forEach(r=>{
+    r.r += 1.5;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
+    ctx.strokeStyle = "rgba(255,255,255,"+(1-r.r/80)+")";
+    ctx.stroke();
+  });
 
-     dart.active = false;
-   }
+  ripples = ripples.filter(r=>r.r < 80);
 
-   // stop if off screen
-   if(dart.x<0||dart.x>innerWidth||dart.y<0||dart.y>innerHeight){
-     dart.active = false;
-   }
- }
+  requestAnimationFrame(loop);
+}
 
-},30);
+loop();
 </script>
 
 </body>
