@@ -3,135 +3,100 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body { margin:0; overflow:hidden; background:#87ceeb; }
-canvas { display:block; touch-action:none; }
-#ui{
- position:fixed;
- top:10px;
- width:100%;
- text-align:center;
- color:white;
- font-family:sans-serif;
- text-shadow:0 0 5px black;
-}
+body { margin:0; overflow:hidden; }
 </style>
 </head>
 <body>
 
-<div id="ui">Score: 0</div>
-<canvas id="c"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <script>
-let c = document.getElementById("c");
-let ctx = c.getContext("2d");
+let scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
 
-c.width = innerWidth;
-c.height = innerHeight;
+// camera
+let camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(0, 5, 10);
 
-let t = 0;
-let score = 0;
+// renderer
+let renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
 
-// player (SIDE MOVEMENT ONLY)
-let x = c.width/2;
-let speed = 0;
-let targetX = x;
+// LIGHT (sun)
+let light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5,10,5);
+scene.add(light);
 
-// ground levels
-let shoreY = c.height * 0.65;
+// ambient light
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-// shells
-let shells = [];
+// SAND
+let sandGeo = new THREE.PlaneGeometry(50, 50);
+let sandMat = new THREE.MeshStandardMaterial({ color: 0xf4d9a0 });
+let sand = new THREE.Mesh(sandGeo, sandMat);
+sand.rotation.x = -Math.PI/2;
+scene.add(sand);
 
-// INPUT (tight)
-c.addEventListener("touchmove", e=>{
- targetX = e.touches[0].clientX;
+// WATER
+let waterGeo = new THREE.PlaneGeometry(50, 20, 100, 100);
+let waterMat = new THREE.MeshStandardMaterial({
+ color: 0x3aa6d6,
+ metalness:0.3,
+ roughness:0.2
 });
-c.addEventListener("mousemove", e=>{
- targetX = e.clientX;
+let water = new THREE.Mesh(waterGeo, waterMat);
+water.rotation.x = -Math.PI/2;
+water.position.z = -10;
+scene.add(water);
+
+// PLAYER (simple sphere)
+let playerGeo = new THREE.SphereGeometry(0.5, 32, 32);
+let playerMat = new THREE.MeshStandardMaterial({color:0xff0000});
+let player = new THREE.Mesh(playerGeo, playerMat);
+player.position.set(0,0.5,0);
+scene.add(player);
+
+// movement target
+let targetX = 0;
+
+window.addEventListener("mousemove", e=>{
+ targetX = (e.clientX / innerWidth - 0.5) * 20;
 });
 
-// spawn shells near shoreline
-function spawn(){
- shells.push({
-   x: Math.random()*c.width,
-   y: shoreY + 20 + Math.random()*30,
-   hit:false
- });
-}
+window.addEventListener("touchmove", e=>{
+ targetX = (e.touches[0].clientX / innerWidth - 0.5) * 20;
+});
 
-function loop(){
- t += 0.04;
+// animate waves
+function animate(){
+ requestAnimationFrame(animate);
 
- // SKY
- let sky = ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0,"#7ec8ff");
- sky.addColorStop(1,"#ffd2a6");
- ctx.fillStyle = sky;
- ctx.fillRect(0,0,c.width,c.height);
+ let time = Date.now() * 0.001;
 
- // SUN
- ctx.beginPath();
- ctx.arc(c.width*0.8, 120 + Math.sin(t)*5, 40, 0, Math.PI*2);
- ctx.fillStyle = "rgba(255,220,120,0.9)";
- ctx.fill();
-
- // OCEAN
- let ocean = ctx.createLinearGradient(0,shoreY-100,0,c.height);
- ocean.addColorStop(0,"#3aa6d6");
- ocean.addColorStop(1,"#0e3a5a");
- ctx.fillStyle = ocean;
- ctx.fillRect(0,shoreY-100,c.width,100);
-
- // WAVES (rolling)
- ctx.beginPath();
- for(let px=0; px<c.width; px++){
-   let y = shoreY - 20 + Math.sin(px*0.02 + t)*10;
-   ctx.lineTo(px,y);
+ // wave effect
+ let pos = water.geometry.attributes.position;
+ for(let i=0;i<pos.count;i++){
+   let x = pos.getX(i);
+   let y = pos.getY(i);
+   pos.setZ(i, Math.sin(x*0.3 + time)*0.3 + Math.sin(y*0.5 + time)*0.2);
  }
- ctx.strokeStyle = "white";
- ctx.lineWidth = 2;
- ctx.stroke();
+ pos.needsUpdate = true;
 
- // SAND
- ctx.fillStyle = "#f4d9a0";
- ctx.fillRect(0,shoreY,c.width,c.height);
+ // smooth movement
+ player.position.x += (targetX - player.position.x)*0.05;
 
- // movement (tight)
- speed = (targetX - x) * 0.15;
- x += speed;
-
- // spawn shells
- if(Math.random()<0.04) spawn();
-
- // shells
- shells.forEach(s=>{
-   ctx.fillStyle="#d19c5c";
-   ctx.beginPath();
-   ctx.arc(s.x, s.y, 6, 0, Math.PI*2);
-   ctx.fill();
-
-   // collect
-   if(Math.abs(s.x - x) < 20){
-     score++;
-     s.hit = true;
-   }
- });
-
- shells = shells.filter(s=>!s.hit);
-
- // player (simple character)
- ctx.fillStyle="red";
- ctx.beginPath();
- ctx.arc(x, shoreY-10, 10, 0, Math.PI*2);
- ctx.fill();
-
- // UI
- document.getElementById("ui").innerText = "Score: " + score;
-
- requestAnimationFrame(loop);
+ renderer.render(scene, camera);
 }
 
-loop();
+animate();
+
+// resize
+window.addEventListener("resize", ()=>{
+ camera.aspect = innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth, innerHeight);
+});
 </script>
 
 </body>
