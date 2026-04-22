@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {
+  margin:0;
+  overflow:hidden;
+  background: radial-gradient(circle at center, #0b1220, #020617);
+  font-family:sans-serif;
+  color:white;
+}
+
+#ui {
+  position:fixed;
+  top:10px;
+  width:100%;
+  text-align:center;
+  font-size:18px;
+  opacity:0.8;
+}
+
+#centerMsg{
+  position:fixed;
+  top:50%;
+  width:100%;
+  text-align:center;
+  font-size:26px;
+  transform:translateY(-50%);
+  white-space:pre-line;
+  opacity:0.9;
+}
+
+.heart {
+  position:absolute;
+  font-size:24px;
+  opacity:0.85;
+}
+
+#player {
+  position:absolute;
+  font-size:34px;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  filter: drop-shadow(0 0 8px rgba(255,100,100,0.6));
+}
+</style>
+</head>
+<body>
+
+<div id="ui">Score: 0</div>
+<div id="centerMsg">Tap to Drift ❤️</div>
+<div id="player">❤️</div>
+
+<script>
+let player = document.getElementById("player");
+let hearts = [];
+let playing = false;
+let score = 0;
+
+// smooth movement
+let targetX = innerWidth/2;
+let targetY = innerHeight/2;
+let px = targetX;
+let py = targetY;
+
+// AUDIO (soft ambient tone)
+let ctx = new (window.AudioContext || window.webkitAudioContext)();
+let osc = null;
+
+function startMusic(){
+  osc = ctx.createOscillator();
+  let gain = ctx.createGain();
+
+  osc.type = "sine";
+  osc.frequency.value = 220;
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  gain.gain.setValueAtTime(0.03, ctx.currentTime);
+  osc.start();
+}
+
+// start game
+document.body.addEventListener("click", () => {
+  if(playing) return;
+
+  playing = true;
+  score = 0;
+  hearts.forEach(h=>h.remove());
+  hearts = [];
+
+  document.getElementById("centerMsg").innerText = "";
+
+  startMusic();
+});
+
+// input
+document.addEventListener("mousemove", move);
+document.addEventListener("touchmove", move);
+
+function move(e){
+  targetX = e.touches ? e.touches[0].clientX : e.clientX;
+  targetY = e.touches ? e.touches[0].clientY : e.clientY;
+}
+
+// spawn drifting hearts
+function spawn(){
+  let h = document.createElement("div");
+  h.className = "heart";
+
+  let r = Math.random();
+
+  if(r > 0.9){
+    h.type = "gold";
+    h.innerHTML = "<span style='color:#ffd966;'>💛</span>";
+    h.value = 5;
+  } else {
+    h.type = "normal";
+    h.innerHTML = "<span style='color:#ff6b6b;'>❤️</span>";
+    h.value = 1;
+  }
+
+  // spawn from edges
+  let edge = Math.floor(Math.random()*4);
+
+  if(edge === 0){ h.x = 0; h.y = Math.random()*innerHeight; }
+  if(edge === 1){ h.x = innerWidth; h.y = Math.random()*innerHeight; }
+  if(edge === 2){ h.x = Math.random()*innerWidth; h.y = 0; }
+  if(edge === 3){ h.x = Math.random()*innerWidth; h.y = innerHeight; }
+
+  // drifting velocity
+  h.vx = (Math.random()-0.5)*1.2;
+  h.vy = (Math.random()-0.5)*1.2;
+
+  h.style.left = h.x + "px";
+  h.style.top = h.y + "px";
+
+  document.body.appendChild(h);
+  hearts.push(h);
+}
+
+// main loop
+setInterval(()=>{
+
+  if(!playing) return;
+
+  // smooth follow (this is the relaxing part)
+  px += (targetX - px) * 0.05;
+  py += (targetY - py) * 0.05;
+
+  player.style.left = px + "px";
+  player.style.top = py + "px";
+
+  // spawn rate (gentle increase)
+  if(Math.random() < 0.03 + score*0.0005) spawn();
+
+  hearts.forEach(h => {
+
+    h.x += h.vx;
+    h.y += h.vy;
+
+    h.style.left = h.x + "px";
+    h.style.top = h.y + "px";
+
+    // soft drift randomness
+    h.vx += (Math.random()-0.5)*0.05;
+    h.vy += (Math.random()-0.5)*0.05;
+
+    // collect
+    if(Math.abs(px - h.x) < 25 && Math.abs(py - h.y) < 25){
+      score += h.value;
+
+      // soft pulse effect
+      player.style.transform = "translate(-50%,-50%) scale(1.2)";
+      setTimeout(()=>player.style.transform="translate(-50%,-50%) scale(1)",100);
+
+      h.remove();
+    }
+
+    // remove far away
+    if(h.x < -50 || h.x > innerWidth+50 || h.y < -50 || h.y > innerHeight+50){
+      h.remove();
+    }
+  });
+
+  hearts = hearts.filter(h => h.isConnected);
+
+  document.getElementById("ui").innerText = "Score: " + score;
+
+},30);
+</script>
+
+</body>
+</html>
