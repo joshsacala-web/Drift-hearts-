@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body { margin:0; overflow:hidden; }
+body { margin:0; overflow:hidden; font-family:sans-serif; }
 canvas { display:block; touch-action:none; }
 #ui{
  position:fixed;
@@ -11,18 +11,18 @@ canvas { display:block; touch-action:none; }
  width:100%;
  text-align:center;
  color:white;
- font-family:sans-serif;
+ font-size:18px;
+ text-shadow:0 0 5px black;
 }
 </style>
 </head>
 <body>
 
-<div id="ui">Relax Score: 0</div>
+<div id="ui">Score: 0</div>
 <canvas id="c"></canvas>
 
-<!-- REAL OCEAN SOUND -->
 <audio id="ocean" loop>
-<source src="https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8c8f6c7.mp3" type="audio/mpeg">
+<source src="https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8c8f6c7.mp3">
 </audio>
 
 <script>
@@ -34,6 +34,7 @@ c.height = innerHeight;
 
 let t = 0;
 let score = 0;
+let started = false;
 
 // player
 let x = c.width/2;
@@ -42,12 +43,21 @@ let tx = x, ty = y;
 
 // items
 let items = [];
+let splashes = [];
 
-// footprints
-let prints = [];
+// audio
+let audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+function ping(freq){
+ let o = audioCtx.createOscillator();
+ let g = audioCtx.createGain();
+ o.connect(g); g.connect(audioCtx.destination);
+ o.frequency.value = freq;
+ g.gain.value = 0.05;
+ o.start();
+ o.stop(audioCtx.currentTime + 0.1);
+}
 
-// start audio on interaction
-let started = false;
+// start
 c.addEventListener("touchstart", start);
 c.addEventListener("mousedown", start);
 
@@ -70,96 +80,105 @@ function move(e){
  tx = px;
  ty = py;
 
- // footprint
- if(py > c.height*0.65){
-   prints.push({x:px, y:py, life:1});
+ // splash if near water
+ if(py < c.height*0.65){
+   splashes.push({x:px, y:py, r:0});
  }
 }
 
-// spawn items
+// spawn
 function spawn(){
- let types = ["❤️","🐚","⭐"];
+ let types = ["❤️","🐚"];
  items.push({
    x: Math.random()*c.width,
-   y: c.height*0.6,
+   y: c.height*0.65 + Math.random()*100,
    vx:(Math.random()-0.5)*0.3,
-   vy:Math.random()*0.3,
-   emoji:types[Math.floor(Math.random()*3)]
+   emoji:types[Math.floor(Math.random()*2)]
  });
 }
 
 // loop
 function loop(){
- t += 0.005;
+ t += 0.02;
 
- // DAY → SUNSET SKY
- let sky = ctx.createLinearGradient(0,0,0,c.height*0.6);
- let sunset = (Math.sin(t)+1)/2;
-
- sky.addColorStop(0,`rgb(${255},${180 - sunset*80},${120 - sunset*60})`);
- sky.addColorStop(1,`rgb(${135 - sunset*50},${206 - sunset*80},${235 - sunset*120})`);
-
+ // SKY
+ let sky = ctx.createLinearGradient(0,0,0,c.height);
+ sky.addColorStop(0,"#87ceeb");
+ sky.addColorStop(1,"#fca");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
  // SUN
  ctx.beginPath();
- ctx.arc(c.width*0.8, c.height*(0.2 + sunset*0.2), 40, 0, Math.PI*2);
- ctx.fillStyle = "rgba(255,220,120,0.9)";
+ ctx.arc(c.width*0.8, 120 + Math.sin(t)*5, 40, 0, Math.PI*2);
+ ctx.fillStyle="rgba(255,220,120,0.9)";
  ctx.fill();
 
- // OCEAN + FOAM
- for(let i=0;i<4;i++){
-   ctx.beginPath();
-   for(let px=0; px<c.width; px++){
-     let wy = c.height*0.55 + i*15 +
-       Math.sin(px*0.01 + t*2 + i)*10;
-     ctx.lineTo(px, wy);
-   }
-   ctx.strokeStyle = i===3 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)";
-   ctx.lineWidth = i===3 ? 3 : 1;
-   ctx.stroke();
- }
+ // OCEAN DEPTH
+ let ocean = ctx.createLinearGradient(0,c.height*0.5,0,c.height);
+ ocean.addColorStop(0,"#3ba7d6");
+ ocean.addColorStop(1,"#0b3c5d");
+ ctx.fillStyle=ocean;
+ ctx.fillRect(0,c.height*0.5,c.width,c.height);
 
- // SAND
- ctx.fillStyle = "#f4d9a0";
+ // WAVES + FOAM
+ ctx.beginPath();
+ for(let px=0;px<c.width;px++){
+   let y = c.height*0.6 + Math.sin(px*0.02 + t)*10;
+   ctx.lineTo(px,y);
+ }
+ ctx.strokeStyle="white";
+ ctx.lineWidth=2;
+ ctx.stroke();
+
+ // WET SAND
+ ctx.fillStyle="#d2b48c";
+ ctx.fillRect(0,c.height*0.6,c.width,50);
+
+ // DRY SAND
+ ctx.fillStyle="#f4d9a0";
  ctx.fillRect(0,c.height*0.65,c.width,c.height);
 
- // footprints fade
- prints.forEach(p=>{
-   p.life -= 0.005;
-   ctx.fillStyle = `rgba(100,80,50,${p.life})`;
+ // player smoothing
+ x += (tx-x)*0.08;
+ y += (ty-y)*0.08;
+
+ // glow when moving
+ ctx.shadowBlur = 15;
+ ctx.shadowColor = "white";
+
+ ctx.font="32px sans-serif";
+ ctx.fillText("❤️",x,y);
+
+ ctx.shadowBlur = 0;
+
+ // splashes
+ splashes.forEach(s=>{
+   s.r+=2;
    ctx.beginPath();
-   ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
-   ctx.fill();
+   ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+   ctx.strokeStyle="rgba(255,255,255,"+(1-s.r/30)+")";
+   ctx.stroke();
  });
- prints = prints.filter(p=>p.life>0);
-
- // smooth movement
- x += (tx-x)*0.05;
- y += (ty-y)*0.05;
-
- // player
- ctx.font = "32px sans-serif";
- ctx.fillText("❤️", x, y);
+ splashes = splashes.filter(s=>s.r<30);
 
  // spawn items
- if(Math.random()<0.02) spawn();
+ if(Math.random()<0.03) spawn();
 
  items.forEach(o=>{
-   o.x += o.vx;
-   o.y += o.vy;
-
-   ctx.fillText(o.emoji, o.x, o.y);
+   o.x+=o.vx;
+   ctx.fillText(o.emoji,o.x,o.y);
 
    if(Math.abs(o.x-x)<25 && Math.abs(o.y-y)<25){
      score++;
-     document.getElementById("ui").innerText = "Relax Score: " + score;
-     o.hit = true;
+     ping(600);
+     o.hit=true;
    }
  });
 
- items = items.filter(o=>!o.hit && o.y < c.height);
+ items = items.filter(o=>!o.hit);
+
+ document.getElementById("ui").innerText="Score: "+score;
 
  requestAnimationFrame(loop);
 }
