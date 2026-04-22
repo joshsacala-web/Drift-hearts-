@@ -3,153 +3,165 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body {
-  margin:0;
-  overflow:hidden;
-  background: linear-gradient(#ff9966, #2c3e50);
-  touch-action:none;
-  font-family:sans-serif;
-}
-
-#msg{
+body { margin:0; overflow:hidden; }
+canvas { display:block; touch-action:none; }
+#ui{
  position:fixed;
- top:50%;
+ top:10px;
  width:100%;
  text-align:center;
  color:white;
- font-size:22px;
- transform:translateY(-50%);
- opacity:0.8;
+ font-family:sans-serif;
 }
-canvas { display:block; }
 </style>
 </head>
 <body>
 
-<div id="msg">Tap to Relax 🌊</div>
+<div id="ui">Relax Score: 0</div>
 <canvas id="c"></canvas>
 
-<script>
-let canvas = document.getElementById("c");
-let ctx = canvas.getContext("2d");
+<!-- REAL OCEAN SOUND -->
+<audio id="ocean" loop>
+<source src="https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8c8f6c7.mp3" type="audio/mpeg">
+</audio>
 
-canvas.width = innerWidth;
-canvas.height = innerHeight;
+<script>
+let c = document.getElementById("c");
+let ctx = c.getContext("2d");
+
+c.width = innerWidth;
+c.height = innerHeight;
 
 let t = 0;
+let score = 0;
+
+// player
+let x = c.width/2;
+let y = c.height*0.75;
+let tx = x, ty = y;
+
+// items
+let items = [];
+
+// footprints
+let prints = [];
+
+// start audio on interaction
 let started = false;
+c.addEventListener("touchstart", start);
+c.addEventListener("mousedown", start);
 
-// player (floating heart)
-let x = canvas.width/2;
-let y = canvas.height/2;
-let tx = x;
-let ty = y;
-
-// ripple effects
-let ripples = [];
-
-// audio (soft waves)
-let ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
-let noise, gain;
-
-function startSound(){
-  let bufferSize = 2 * ctxAudio.sampleRate;
-  let noiseBuffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
-  let data = noiseBuffer.getChannelData(0);
-
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = Math.random() * 2 - 1;
-  }
-
-  noise = ctxAudio.createBufferSource();
-  noise.buffer = noiseBuffer;
-  noise.loop = true;
-
-  let filter = ctxAudio.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 500;
-
-  gain = ctxAudio.createGain();
-  gain.gain.value = 0.02;
-
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctxAudio.destination);
-
-  noise.start();
+function start(e){
+ if(!started){
+   document.getElementById("ocean").volume = 0.3;
+   document.getElementById("ocean").play();
+   started = true;
+ }
+ move(e);
 }
 
-// input
-canvas.addEventListener("touchstart", tap);
-canvas.addEventListener("mousedown", tap);
+// movement
+c.addEventListener("touchmove", move);
+c.addEventListener("mousemove", move);
 
-function tap(e){
-  if(!started){
-    started = true;
-    document.getElementById("msg").innerText = "";
-    startSound();
-  }
+function move(e){
+ let px = e.touches ? e.touches[0].clientX : e.clientX;
+ let py = e.touches ? e.touches[0].clientY : e.clientY;
+ tx = px;
+ ty = py;
 
-  let px = e.touches ? e.touches[0].clientX : e.clientX;
-  let py = e.touches ? e.touches[0].clientY : e.clientY;
+ // footprint
+ if(py > c.height*0.65){
+   prints.push({x:px, y:py, life:1});
+ }
+}
 
-  tx = px;
-  ty = py;
-
-  ripples.push({x:px, y:py, r:0});
+// spawn items
+function spawn(){
+ let types = ["❤️","🐚","⭐"];
+ items.push({
+   x: Math.random()*c.width,
+   y: c.height*0.6,
+   vx:(Math.random()-0.5)*0.3,
+   vy:Math.random()*0.3,
+   emoji:types[Math.floor(Math.random()*3)]
+ });
 }
 
 // loop
 function loop(){
-  t += 0.01;
+ t += 0.005;
 
-  // sky
-  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
-  grad.addColorStop(0,"#ff9966");
-  grad.addColorStop(1,"#2c3e50");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+ // DAY → SUNSET SKY
+ let sky = ctx.createLinearGradient(0,0,0,c.height*0.6);
+ let sunset = (Math.sin(t)+1)/2;
 
-  // sun
-  ctx.beginPath();
-  ctx.arc(canvas.width/2, canvas.height*0.3 + Math.sin(t)*10, 40, 0, Math.PI*2);
-  ctx.fillStyle = "rgba(255,200,120,0.8)";
-  ctx.fill();
+ sky.addColorStop(0,`rgb(${255},${180 - sunset*80},${120 - sunset*60})`);
+ sky.addColorStop(1,`rgb(${135 - sunset*50},${206 - sunset*80},${235 - sunset*120})`);
 
-  // waves
-  for(let i=0;i<3;i++){
-    ctx.beginPath();
-    for(let x=0;x<canvas.width;x++){
-      let y = canvas.height*0.6 + Math.sin(x*0.01 + t + i)*10 + i*20;
-      ctx.lineTo(x,y);
-    }
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-    ctx.stroke();
-  }
+ ctx.fillStyle = sky;
+ ctx.fillRect(0,0,c.width,c.height);
 
-  // smooth movement
-  x += (tx - x)*0.03;
-  y += (ty - y)*0.03;
+ // SUN
+ ctx.beginPath();
+ ctx.arc(c.width*0.8, c.height*(0.2 + sunset*0.2), 40, 0, Math.PI*2);
+ ctx.fillStyle = "rgba(255,220,120,0.9)";
+ ctx.fill();
 
-  // floating effect
-  let float = Math.sin(t*2)*5;
+ // OCEAN + FOAM
+ for(let i=0;i<4;i++){
+   ctx.beginPath();
+   for(let px=0; px<c.width; px++){
+     let wy = c.height*0.55 + i*15 +
+       Math.sin(px*0.01 + t*2 + i)*10;
+     ctx.lineTo(px, wy);
+   }
+   ctx.strokeStyle = i===3 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)";
+   ctx.lineWidth = i===3 ? 3 : 1;
+   ctx.stroke();
+ }
 
-  // heart
-  ctx.font = "30px sans-serif";
-  ctx.fillText("❤️", x, y + float);
+ // SAND
+ ctx.fillStyle = "#f4d9a0";
+ ctx.fillRect(0,c.height*0.65,c.width,c.height);
 
-  // ripples
-  ripples.forEach(r=>{
-    r.r += 1.5;
-    ctx.beginPath();
-    ctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
-    ctx.strokeStyle = "rgba(255,255,255,"+(1-r.r/80)+")";
-    ctx.stroke();
-  });
+ // footprints fade
+ prints.forEach(p=>{
+   p.life -= 0.005;
+   ctx.fillStyle = `rgba(100,80,50,${p.life})`;
+   ctx.beginPath();
+   ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+   ctx.fill();
+ });
+ prints = prints.filter(p=>p.life>0);
 
-  ripples = ripples.filter(r=>r.r < 80);
+ // smooth movement
+ x += (tx-x)*0.05;
+ y += (ty-y)*0.05;
 
-  requestAnimationFrame(loop);
+ // player
+ ctx.font = "32px sans-serif";
+ ctx.fillText("❤️", x, y);
+
+ // spawn items
+ if(Math.random()<0.02) spawn();
+
+ items.forEach(o=>{
+   o.x += o.vx;
+   o.y += o.vy;
+
+   ctx.fillText(o.emoji, o.x, o.y);
+
+   if(Math.abs(o.x-x)<25 && Math.abs(o.y-y)<25){
+     score++;
+     document.getElementById("ui").innerText = "Relax Score: " + score;
+     o.hit = true;
+   }
+ });
+
+ items = items.filter(o=>!o.hit && o.y < c.height);
+
+ requestAnimationFrame(loop);
 }
 
 loop();
