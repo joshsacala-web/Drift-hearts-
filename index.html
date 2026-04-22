@@ -5,6 +5,7 @@
 <style>
 body { margin:0; overflow:hidden; background:#87ceeb; }
 canvas { display:block; }
+
 #ui{
  position:fixed;
  top:10px;
@@ -13,14 +14,46 @@ canvas { display:block; }
  color:white;
  font-family:sans-serif;
  text-shadow:0 0 5px black;
- font-size:20px;
+ font-size:18px;
+}
+
+#start{
+ position:fixed;
+ top:0; left:0;
+ width:100%; height:100%;
+ background:rgba(0,0,0,0.6);
+ color:white;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ align-items:center;
+ font-family:sans-serif;
+ text-align:center;
+}
+
+button{
+ padding:10px 20px;
+ font-size:18px;
+ margin-top:15px;
 }
 </style>
 </head>
 <body>
 
 <div id="ui">Score: 0</div>
+
+<div id="start">
+ <h2>❤️ Beach Runner</h2>
+ <p>Jump over holes in the sand</p>
+ <p>Tap / Space / ↑ to jump</p>
+ <p>Survive as long as you can</p>
+ <button onclick="startGame()">Start</button>
+</div>
+
 <canvas id="c"></canvas>
+
+<audio id="ocean" loop src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b1f6c.mp3"></audio>
+<audio id="music" loop src="https://cdn.pixabay.com/audio/2022/10/25/audio_946b7f0c7d.mp3"></audio>
 
 <script>
 let c = document.getElementById("c");
@@ -30,7 +63,7 @@ c.width = innerWidth;
 c.height = innerHeight;
 
 let score = 0;
-let playing = true;
+let playing = false;
 
 // player
 let player = {
@@ -40,18 +73,33 @@ let player = {
  grounded: true
 };
 
-// waves
-let waves = [];
+// holes
+let holes = [];
 let spawnTimer = 0;
+let speed = 6;
+
+// audio
+let ocean = document.getElementById("ocean");
+let music = document.getElementById("music");
+
+function startGame(){
+ document.getElementById("start").style.display="none";
+ playing = true;
+ ocean.volume = 0.3;
+ music.volume = 0.2;
+ ocean.play();
+ music.play();
+}
 
 // input
-document.addEventListener("keydown", e=>{
- if(e.code === "Space" || e.code === "ArrowUp") jump();
-});
+document.addEventListener("mousedown", jump);
 document.addEventListener("touchstart", jump);
+document.addEventListener("keydown", e=>{
+ if(e.code==="Space" || e.code==="ArrowUp") jump();
+});
 
 function jump(){
- if(!playing) {
+ if(!playing){
    restart();
    return;
  }
@@ -61,79 +109,64 @@ function jump(){
  }
 }
 
-// restart
 function restart(){
  score = 0;
- waves = [];
+ holes = [];
+ speed = 6;
  playing = true;
 }
 
-// game loop
+// loop
 function loop(){
 
- // SKY
+ // SKY gradient (more realistic)
  let sky = ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0,"#7ec8ff");
- sky.addColorStop(1,"#ffd2a6");
+ sky.addColorStop(0,"#6ec6ff");
+ sky.addColorStop(1,"#ffe0b3");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // OCEAN (left side)
- ctx.fillStyle="#3aa6d6";
+ // OCEAN gradient
+ let oceanGrad = ctx.createLinearGradient(0,c.height*0.6,0,c.height);
+ oceanGrad.addColorStop(0,"#4fc3f7");
+ oceanGrad.addColorStop(1,"#01579b");
+ ctx.fillStyle = oceanGrad;
  ctx.fillRect(0,c.height*0.6,c.width,c.height);
 
  // SAND
  ctx.fillStyle="#f4d9a0";
  ctx.fillRect(0,c.height*0.65,c.width,c.height);
 
- // palm trees (simple)
- ctx.fillStyle="#8b5a2b";
- ctx.fillRect(300, c.height*0.55, 10, 80);
- ctx.beginPath();
- ctx.arc(305, c.height*0.55, 25, 0, Math.PI*2);
- ctx.fillStyle="green";
- ctx.fill();
-
- // spawn waves
+ // spawn holes
  if(playing){
    spawnTimer--;
    if(spawnTimer <= 0){
-     waves.push({
+     holes.push({
        x: c.width,
-       width: 60 + Math.random()*40
+       width: 50 + Math.random()*60
      });
-     spawnTimer = 80 + Math.random()*60;
+     spawnTimer = 70 + Math.random()*50;
    }
  }
 
- // waves
- waves.forEach(w=>{
-   w.x -= 6;
+ // holes
+ holes.forEach(h=>{
+   h.x -= speed;
 
-   // wave shape
-   ctx.beginPath();
-   ctx.moveTo(w.x, c.height*0.65);
-   ctx.quadraticCurveTo(
-     w.x + w.width/2,
-     c.height*0.65 - 30,
-     w.x + w.width,
-     c.height*0.65
-   );
-   ctx.fillStyle="white";
-   ctx.fill();
+   ctx.fillStyle="#222";
+   ctx.fillRect(h.x, c.height*0.65, h.width, 20);
 
    // collision
    if(
-     player.x + 20 > w.x &&
-     player.x - 20 < w.x + w.width &&
-     player.y >= c.height*0.63
+     player.x > h.x &&
+     player.x < h.x + h.width &&
+     player.y >= c.height*0.65
    ){
      playing = false;
    }
  });
 
- // remove old waves
- waves = waves.filter(w => w.x + w.width > 0);
+ holes = holes.filter(h=>h.x+h.width>0);
 
  // physics
  player.vy += 0.8;
@@ -145,18 +178,27 @@ function loop(){
    player.grounded = true;
  }
 
+ // shadow (adds realism)
+ ctx.fillStyle="rgba(0,0,0,0.2)";
+ ctx.beginPath();
+ ctx.ellipse(player.x, c.height*0.66, 15, 5, 0, 0, Math.PI*2);
+ ctx.fill();
+
  // player
  ctx.font="40px sans-serif";
  ctx.fillText("❤️", player.x-15, player.y);
 
- // score
+ // difficulty ramp
  if(playing){
    score += 0.05;
+   speed += 0.0005;
  }
 
+ // UI
  document.getElementById("ui").innerText =
-   playing ? "Score: " + Math.floor(score)
-           : "Game Over — Score: " + Math.floor(score) + " (tap to restart)";
+   playing
+   ? "Score: " + Math.floor(score)
+   : "Game Over — " + Math.floor(score) + " (tap to restart)";
 
  requestAnimationFrame(loop);
 }
