@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-html,body{
+body {
  margin:0;
  overflow:hidden;
- background:#87ceeb;
- touch-action:none;
+ background:linear-gradient(#6ec6ff, #eaf7ff);
 }
-canvas{display:block;}
+canvas { display:block; }
 #ui{
  position:fixed;
  top:10px;
@@ -23,65 +22,78 @@ canvas{display:block;}
 </head>
 <body>
 
-<div id="ui"></div>
+<div id="ui">Tap to Start</div>
 <canvas id="c"></canvas>
 
 <script>
-let c = document.getElementById("c");
-let ctx = c.getContext("2d");
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
 
 c.width = innerWidth;
 c.height = innerHeight;
 
-let p = {x:120,y:c.height/2,vy:0};
-let pipes = [];
-let score = 0;
+let gameStarted = false;
 let playing = true;
+let score = 0;
 
-let lastSpawnX = c.width; // 🔥 controls spacing
+// player
+let p = {
+ x: 100,
+ y: c.height/2,
+ vy: 0
+};
+
+// pipes
+let pipes = [];
+let spawnTimer = 0;
 
 // INPUT
-function flap(e){
- e.preventDefault();
- if(!playing) return location.reload();
- p.vy = -6.5;
+function flap(){
+ if(!gameStarted){
+   gameStarted = true;
+   return;
+ }
+ if(!playing){
+   location.reload();
+   return;
+ }
+ p.vy = -7;
 }
-document.addEventListener("touchstart", flap, {passive:false});
+
 document.addEventListener("mousedown", flap);
+document.addEventListener("touchstart", flap);
 
 // LOOP
 function loop(){
 
- ctx.fillStyle="#7ec8ff";
- ctx.fillRect(0,0,c.width,c.height);
+ ctx.clearRect(0,0,c.width,c.height);
 
- // 🔥 SPAWN FIX (distance based, NOT time)
- if(lastSpawnX < c.width - 260){
-   let gap = 180;
-   let top = Math.random()*(c.height-300);
+ // spawn pipes (simple + stable)
+ if(gameStarted){
+   spawnTimer--;
+   if(spawnTimer <= 0){
+     let gap = 180;
+     let top = Math.random()*(c.height-300);
 
-   pipes.push({
-     x:c.width,
-     top,
-     bottom:top+gap,
-     passed:false
-   });
+     pipes.push({
+       x: c.width,
+       top,
+       bottom: top + gap,
+       passed:false
+     });
 
-   lastSpawnX = c.width;
+     spawnTimer = 120; // consistent spacing
+   }
  }
 
- // DRAW PIPES
+ // draw pipes
  pipes.forEach(pipe=>{
-   pipe.x -= 2.8;
-   lastSpawnX = pipe.x;
+   pipe.x -= 3;
 
-   ctx.fillStyle="#ff5a76";
+   ctx.fillStyle = "#ff4d6d";
 
-   // top
-   ctx.fillRect(pipe.x,0,60,pipe.top);
-
-   // bottom
-   ctx.fillRect(pipe.x,pipe.bottom,60,c.height);
+   ctx.fillRect(pipe.x, 0, 60, pipe.top);
+   ctx.fillRect(pipe.x, pipe.bottom, 60, c.height);
 
    // score
    if(!pipe.passed && pipe.x < p.x){
@@ -100,22 +112,28 @@ function loop(){
 
  pipes = pipes.filter(p=>p.x > -60);
 
- // PHYSICS
- p.vy += 0.45;
- if(p.vy > 7) p.vy = 7;
- p.y += p.vy;
+ // physics
+ if(gameStarted){
+   p.vy += 0.5;
+   if(p.vy > 8) p.vy = 8;
+   p.y += p.vy;
+ }
 
  if(p.y < 0) p.y = 0;
  if(p.y > c.height) playing = false;
 
- // PLAYER
- ctx.font="40px sans-serif";
+ // player
+ ctx.font = "40px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
 
  // UI
- document.getElementById("ui").innerText =
-   playing ? "Score: "+score
-           : "Game Over — "+score+" (tap)";
+ if(!gameStarted){
+   document.getElementById("ui").innerText = "Tap to Start";
+ } else if(playing){
+   document.getElementById("ui").innerText = "Score: " + score;
+ } else {
+   document.getElementById("ui").innerText = "Game Over — " + score + " (tap)";
+ }
 
  requestAnimationFrame(loop);
 }
