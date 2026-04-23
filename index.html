@@ -5,6 +5,7 @@
 <style>
 body { margin:0; overflow:hidden; background:#87ceeb; }
 canvas { display:block; }
+
 #ui{
  position:fixed;
  top:10px;
@@ -13,7 +14,9 @@ canvas { display:block; }
  color:white;
  font-family:sans-serif;
  text-shadow:0 0 5px black;
+ font-size:18px;
 }
+
 #start{
  position:fixed;
  width:100%; height:100%;
@@ -24,8 +27,14 @@ canvas { display:block; }
  align-items:center;
  color:white;
  font-family:sans-serif;
+ text-align:center;
 }
-button{ padding:10px 20px; font-size:18px; }
+
+button{
+ padding:10px 20px;
+ font-size:18px;
+ margin-top:15px;
+}
 </style>
 </head>
 <body>
@@ -34,7 +43,8 @@ button{ padding:10px 20px; font-size:18px; }
 
 <div id="start">
  <h2>❤️ Flappy Beach</h2>
- <p>Tap to fly through waves</p>
+ <p>Tap to fly through wave gaps</p>
+ <p>Avoid the crashing waves 🌊</p>
  <button onclick="startGame()">Start</button>
 </div>
 
@@ -45,6 +55,7 @@ button{ padding:10px 20px; font-size:18px; }
 <script>
 let c = document.getElementById("c");
 let ctx = c.getContext("2d");
+
 c.width = innerWidth;
 c.height = innerHeight;
 
@@ -58,14 +69,15 @@ let p = {
  vy: 0
 };
 
-// pipes (waves)
-let pipes = [];
+// waves
+let waves = [];
 let spawn = 0;
 
 // start
 function startGame(){
  document.getElementById("start").style.display="none";
  playing = true;
+ document.getElementById("music").volume = 0.3;
  document.getElementById("music").play();
 }
 
@@ -77,17 +89,26 @@ function flap(){
 document.addEventListener("mousedown", flap);
 document.addEventListener("touchstart", flap);
 
+// restart
+function restart(){
+ score = 0;
+ waves = [];
+ p.y = c.height/2;
+ p.vy = 0;
+ playing = true;
+}
+
 // loop
 function loop(){
 
- // sky
+ // SKY
  let sky = ctx.createLinearGradient(0,0,0,c.height);
  sky.addColorStop(0,"#6ec6ff");
  sky.addColorStop(1,"#ffe0b3");
- ctx.fillStyle=sky;
+ ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // ocean
+ // OCEAN
  ctx.fillStyle="#3aa6d6";
  ctx.fillRect(0,c.height*0.6,c.width,c.height);
 
@@ -95,10 +116,10 @@ function loop(){
  if(playing){
    spawn--;
    if(spawn<=0){
-     let gap = 140;
+     let gap = 150;
      let top = Math.random()*(c.height*0.4);
 
-     pipes.push({
+     waves.push({
        x:c.width,
        top:top,
        bottom:top+gap,
@@ -109,39 +130,46 @@ function loop(){
    }
  }
 
- // draw pipes (waves)
- pipes.forEach(pipe=>{
-   pipe.x -= 3;
+ // draw waves (curved)
+ waves.forEach(w=>{
+   w.x -= 3;
 
-   // top wave
+   // TOP WAVE
+   ctx.beginPath();
+   ctx.moveTo(w.x, 0);
+   ctx.lineTo(w.x+60, 0);
+   ctx.quadraticCurveTo(w.x+30, w.top-30, w.x, w.top);
    ctx.fillStyle="white";
-   ctx.fillRect(pipe.x, 0, 60, pipe.top);
+   ctx.fill();
 
-   // bottom wave
-   ctx.fillRect(pipe.x, pipe.bottom, 60, c.height);
+   // BOTTOM WAVE
+   ctx.beginPath();
+   ctx.moveTo(w.x, c.height);
+   ctx.lineTo(w.x+60, c.height);
+   ctx.quadraticCurveTo(w.x+30, w.bottom+30, w.x, w.bottom);
+   ctx.fill();
 
    // score
-   if(!pipe.scored && pipe.x < p.x){
+   if(!w.scored && w.x < p.x){
      score++;
-     pipe.scored = true;
+     w.scored = true;
    }
 
    // collision
    if(
-     p.x > pipe.x && p.x < pipe.x+60 &&
-     (p.y < pipe.top || p.y > pipe.bottom)
+     p.x > w.x && p.x < w.x+60 &&
+     (p.y < w.top || p.y > w.bottom)
    ){
      playing = false;
    }
  });
 
- pipes = pipes.filter(pipe=>pipe.x > -60);
+ waves = waves.filter(w=>w.x > -60);
 
  // physics
  p.vy += 0.4;
  p.y += p.vy;
 
- // ground/ceiling
  if(p.y > c.height || p.y < 0){
    playing = false;
  }
@@ -152,13 +180,13 @@ function loop(){
 
  // UI
  document.getElementById("ui").innerText =
-   playing ? "Score: " + score : "Game Over — " + score + " (tap to restart)";
+   playing
+   ? "Score: " + score
+   : "Game Over — " + score + " (tap to restart)";
 
- // restart
+ // restart click
  if(!playing){
-   document.addEventListener("click", ()=>{
-     location.reload();
-   }, {once:true});
+   document.addEventListener("click", restart, {once:true});
  }
 
  requestAnimationFrame(loop);
