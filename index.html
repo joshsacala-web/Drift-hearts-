@@ -3,11 +3,13 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
-body {
+html, body {
  margin:0;
+ padding:0;
  overflow:hidden;
+ touch-action:none;
+ overscroll-behavior:none;
  background:#87ceeb;
- touch-action:none; /* 🔥 stops zoom / camera movement */
 }
 canvas { display:block; }
 
@@ -18,8 +20,8 @@ canvas { display:block; }
  text-align:center;
  color:white;
  font-family:sans-serif;
- text-shadow:0 0 8px black;
- font-size:18px;
+ text-shadow:0 0 6px black;
+ font-size:16px;
 }
 </style>
 </head>
@@ -27,8 +29,6 @@ canvas { display:block; }
 
 <div id="ui"></div>
 <canvas id="c"></canvas>
-
-<audio id="music" loop src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b1f6c.mp3"></audio>
 
 <script>
 let c = document.getElementById("c");
@@ -50,94 +50,84 @@ let p = { x:120, y:c.height/2, vy:0 };
 let pipes = [];
 let spawn = 0;
 
-// difficulty base
-let baseSpeed = 2.5;
-let baseGap = 190;
-
-// start music after first tap
-let started = false;
-
-// INPUT (FIXED)
+// input (FIXED)
 function flap(e){
  e.preventDefault();
 
- if(!started){
-   document.getElementById("music").volume = 0.3;
-   document.getElementById("music").play();
-   started = true;
+ if(!playing){
+   location.reload();
+   return;
  }
 
- if(!playing) return location.reload();
-
- p.vy = -7; // tight control
+ // reset upward velocity cleanly
+ p.vy = -6.5;
 }
 document.addEventListener("touchstart", flap, {passive:false});
 document.addEventListener("mousedown", flap);
 
-// LOOP
+// loop
 function loop(){
 
- let timeAlive = (Date.now() - startTime) / 1000;
- let level = Math.floor(timeAlive / 30);
+ let time = (Date.now() - startTime)/1000;
+ let level = Math.floor(time / 30);
 
- // SMOOTH progression (not harsh jumps)
- let speed = baseSpeed + level * 0.4;
- let gap = baseGap - level * 10;
+ // MUCH smoother difficulty
+ let speed = 2.2 + level * 0.25;
+ let gap = 200 - level * 8;
 
- if(gap < 110) gap = 110;
+ if(gap < 140) gap = 140;
 
- // SKY (better gradient)
+ // SKY (better)
  let sky = ctx.createLinearGradient(0,0,0,c.height);
  sky.addColorStop(0,"#6ec6ff");
- sky.addColorStop(1,"#ffffff");
+ sky.addColorStop(1,"#eaf7ff");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // subtle clouds
- ctx.fillStyle="rgba(255,255,255,0.6)";
- ctx.beginPath();
- ctx.arc(200,100,30,0,Math.PI*2);
- ctx.arc(240,100,25,0,Math.PI*2);
- ctx.fill();
-
- // spawn pipes
+ // spawn pipes (FIXED spacing)
  spawn--;
- if(spawn<=0){
-   let top = Math.random()*(c.height-300);
+ if(spawn <= 0){
+   let top = Math.random() * (c.height - 300);
 
    pipes.push({
-     x:c.width,
-     top,
-     bottom:top+gap,
+     x: c.width,
+     top: top,
+     bottom: top + gap,
      scored:false
    });
 
-   spawn = 110 - level*5;
-   if(spawn < 60) spawn = 60;
+   // consistent spacing (this was your biggest issue)
+   spawn = 140 - level * 5;
+   if(spawn < 90) spawn = 90;
  }
 
- // draw pipes
+ // draw pipes (ROUNDED + nicer)
  pipes.forEach(pipe=>{
    pipe.x -= speed;
 
-   // gradient pipes (better look)
-   let grad = ctx.createLinearGradient(pipe.x,0,pipe.x+60,0);
-   grad.addColorStop(0,"#ff6b81");
-   grad.addColorStop(1,"#ff4757");
+   ctx.fillStyle="#ff5a76";
 
-   ctx.fillStyle = grad;
-   ctx.fillRect(pipe.x, 0, 60, pipe.top);
-   ctx.fillRect(pipe.x, pipe.bottom, 60, c.height);
+   // top
+   ctx.beginPath();
+   ctx.roundRect(pipe.x, 0, 60, pipe.top, 10);
+   ctx.fill();
 
-   // heart indicator
-   ctx.font="24px sans-serif";
-   ctx.fillText("💖", pipe.x+12, pipe.top+80);
+   // bottom
+   ctx.beginPath();
+   ctx.roundRect(pipe.x, pipe.bottom, 60, c.height, 10);
+   ctx.fill();
 
+   // gap marker
+   ctx.font="22px sans-serif";
+   ctx.fillText("💖", pipe.x+14, pipe.top+90);
+
+   // score
    if(!pipe.scored && pipe.x < p.x){
      score++;
      pipe.scored = true;
    }
 
+   // collision
    if(
      p.x > pipe.x && p.x < pipe.x+60 &&
      (p.y < pipe.top || p.y > pipe.bottom)
@@ -146,24 +136,25 @@ function loop(){
    }
  });
 
- pipes = pipes.filter(pipe=>pipe.x>-60);
+ pipes = pipes.filter(p=>p.x > -60);
 
- // physics (tight, not floaty)
- p.vy += 0.5;
- if(p.vy > 8) p.vy = 8;
+ // physics (balanced)
+ p.vy += 0.45;
+ if(p.vy > 7) p.vy = 7;
+
  p.y += p.vy;
 
  if(p.y < 0) p.y = 0;
  if(p.y > c.height) playing = false;
 
- // player (glow)
- ctx.shadowBlur = 15;
+ // player
+ ctx.shadowBlur = 12;
  ctx.shadowColor = "red";
- ctx.font="42px sans-serif";
+ ctx.font="40px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
  ctx.shadowBlur = 0;
 
- // high score
+ // save high score
  if(!playing && score > highScore){
    highScore = score;
    localStorage.setItem("hs", highScore);
@@ -173,7 +164,7 @@ function loop(){
  document.getElementById("ui").innerText =
    playing
    ? "Score: "+score+" | High: "+highScore+" | Level: "+(level+1)
-   : "Game Over — "+score+" | High: "+highScore+" (tap)";
+   : "Game Over — "+score+" (tap)";
 
  requestAnimationFrame(loop);
 }
