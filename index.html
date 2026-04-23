@@ -3,12 +3,12 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{margin:0;overflow:hidden;background:black;font-family:sans-serif}
+body{margin:0;overflow:hidden;background:#000;font-family:sans-serif}
 canvas{display:block}
 #start{
  position:fixed;inset:0;
  display:flex;align-items:center;justify-content:center;
- background:black;color:white;font-size:24px;
+ background:#000;color:#fff;font-size:24px;
  z-index:10
 }
 </style>
@@ -24,59 +24,66 @@ canvas{display:block}
 
 <script>
 const c=document.getElementById("c"),ctx=c.getContext("2d");
-function resize(){c.width=innerWidth;c.height=innerHeight}
+
+function resize(){
+ c.width=innerWidth;
+ c.height=innerHeight;
+ joy.baseX=c.width/2;
+ joy.baseY=c.height*0.85;
+}
 resize();addEventListener("resize",resize);
 
 // STATE
 let started=false,gameOver=false;
-let score=0,high=0,level=1,time=0,speed=2;
-let slowMo=0;
+let score=0,high=0,time=0;
+let speed=2,level=1;
 
-// PLAYER
+// PLAYER (tighter feel)
 let p={x:150,y:c.height/2,vx:0,vy:0};
 
-// JOYSTICK
+// FIXED JOYSTICK
 let joy={x:0,y:0,baseX:c.width/2,baseY:c.height*0.85,active:false};
 
 // ENTITIES
-let birds=[],particles=[];
+let birds=[];
 
 // START
 function startGame(){
  if(started)return;
  started=true;
  document.getElementById("start").style.display="none";
+
  let a=document.getElementById("ocean");
  a.play().catch(()=>{});
 }
 
-// INPUT
+// INPUT (joystick stays fixed)
 addEventListener("touchstart",e=>{
  startGame();
  joy.active=true;
- let t=e.touches[0];
- joy.baseX=t.clientX;joy.baseY=t.clientY;
-});
+},{passive:false});
+
 addEventListener("touchmove",e=>{
  if(!joy.active)return;
  let t=e.touches[0];
+
  joy.x=t.clientX-joy.baseX;
  joy.y=t.clientY-joy.baseY;
- let m=50;
- joy.x=Math.max(-m,Math.min(m,joy.x));
- joy.y=Math.max(-m,Math.min(m,joy.y));
+
+ let max=50;
+ joy.x=Math.max(-max,Math.min(max,joy.x));
+ joy.y=Math.max(-max,Math.min(max,joy.y));
+},{passive:false});
+
+addEventListener("touchend",()=>{
+ joy.active=false;
+ joy.x=0;joy.y=0;
 });
-addEventListener("touchend",()=>{joy.active=false;joy.x=joy.y=0});
 
-// LOOP
-function loop(){
+// DRAW
+function drawScene(){
+
  time+=0.01;
-
- // DIFFICULTY
- if(Math.floor(time/30)+1>level){
-   level++;
-   speed+=0.5;
- }
 
  // SKY
  let g=ctx.createLinearGradient(0,0,0,c.height);
@@ -88,7 +95,7 @@ function loop(){
  // SUN
  ctx.beginPath();
  ctx.arc(c.width*0.8,c.height*0.2,60,0,Math.PI*2);
- ctx.fillStyle="rgba(255,220,150,0.9)";
+ ctx.fillStyle="rgba(255,230,150,0.9)";
  ctx.fill();
 
  // OCEAN
@@ -101,7 +108,7 @@ function loop(){
    ctx.beginPath();
    for(let x=0;x<c.width;x+=10){
      let y=c.height*0.55+
-       Math.sin(x*0.02+time*(2+l))*(6+l*4);
+       Math.sin(x*0.02+time*(2+l))*(6+l*3);
      ctx.lineTo(x,y);
    }
    ctx.stroke();
@@ -110,81 +117,70 @@ function loop(){
  // SAND
  ctx.fillStyle="#f4d9a5";
  ctx.fillRect(0,c.height*0.8,c.width,c.height);
+}
 
- if(started&&!gameOver){
+// LOOP
+function loop(){
 
-   // MOVEMENT (smooth inertia)
-   p.vx+=(joy.x*0.01-p.vx)*0.1;
-   p.vy+=(joy.y*0.01-p.vy)*0.1;
-   p.x+=p.vx;
-   p.y+=p.vy;
+ drawScene();
 
-   // BOUNDS
+ if(started && !gameOver){
+
+   // TIGHT CONTROL (no floaty feel)
+   p.vx = joy.x * 0.08;
+   p.vy = joy.y * 0.08;
+
+   p.x += p.vx;
+   p.y += p.vy;
+
    p.x=Math.max(0,Math.min(c.width,p.x));
    p.y=Math.max(0,Math.min(c.height,p.y));
 
-   // SPAWN BIRDS
-   if(Math.random()<0.02+level*0.002){
+   // LEVEL RAMP
+   if(Math.floor(time/30)+1>level){
+     level++;
+     speed+=0.4;
+   }
+
+   // SPAWN BIRDS (better spacing)
+   if(Math.random()<0.02){
      birds.push({
        x:c.width,
        y:Math.random()*c.height*0.6,
-       phase:Math.random()*10
+       offset:Math.random()*10
      });
    }
 
    // BIRDS
    birds.forEach(b=>{
      b.x-=speed;
-     b.y+=Math.sin(time+b.phase)*1.5;
+     b.y+=Math.sin(time+b.offset)*1.2;
 
-     ctx.fillStyle="#222";
+     ctx.fillStyle="#111";
      ctx.fillRect(b.x,b.y,24,10);
      ctx.fillRect(b.x+6,b.y-6,10,6);
 
-     let dx=p.x-b.x,dy=p.y-b.y;
-     let d=Math.sqrt(dx*dx+dy*dy);
-
-     // NEAR MISS
-     if(d<40 && d>25 && slowMo<=0){
-       slowMo=20;
-       score+=20;
-     }
-
-     // HIT
-     if(d<20){
+     if(Math.abs(p.x-b.x)<22 && Math.abs(p.y-b.y)<22){
        gameOver=true;
        high=Math.max(high,score);
      }
    });
 
-   // PARTICLES
-   particles.forEach(pt=>{
-     pt.x+=pt.vx;pt.y+=pt.vy;pt.life--;
-     ctx.fillStyle="rgba(255,100,100,"+(pt.life/20)+")";
-     ctx.fillRect(pt.x,pt.y,3,3);
-   });
-
    birds=birds.filter(b=>b.x>-50);
-   particles=particles.filter(p=>p.life>0);
 
    score++;
-
-   // SLOW MOTION
-   if(slowMo>0){
-     slowMo--;
-     speed*=0.98;
-   }
  }
 
  // PLAYER
  ctx.font="40px sans-serif";
  ctx.fillText("❤️",p.x-20,p.y+10);
 
- // JOYSTICK
+ // JOYSTICK (fixed bottom center)
  ctx.beginPath();
- ctx.arc(joy.baseX,joy.baseY,40,0,Math.PI*2);
+ ctx.arc(joy.baseX,joy.baseY,45,0,Math.PI*2);
  ctx.strokeStyle="white";
  ctx.stroke();
+
  ctx.beginPath();
  ctx.arc(joy.baseX+joy.x,joy.baseY+joy.y,20,0,Math.PI*2);
  ctx.fillStyle="white";
@@ -201,6 +197,7 @@ function loop(){
 
  requestAnimationFrame(loop);
 }
+
 loop();
 </script>
 
