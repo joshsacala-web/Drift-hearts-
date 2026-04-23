@@ -5,20 +5,13 @@
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:sans-serif}
 canvas{display:block}
-#start{
- position:fixed;inset:0;
- display:flex;align-items:center;justify-content:center;
- background:#000;color:#fff;font-size:24px;
- z-index:10;
-}
 </style>
 </head>
 <body>
 
-<div id="start">Tap to Start</div>
 <canvas id="c"></canvas>
 
-<audio id="ocean" loop playsinline>
+<audio id="ocean" loop playsinline autoplay muted>
 <source src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3">
 </audio>
 
@@ -28,61 +21,30 @@ const c=document.getElementById("c"),ctx=c.getContext("2d");
 function resize(){
  c.width=innerWidth;
  c.height=innerHeight;
- joy.baseX=c.width/2;
- joy.baseY=c.height*0.85;
 }
 resize();
 addEventListener("resize",resize);
 
-let started=false,gameOver=false;
+let gameOver=false;
 let score=0,time=0;
 
 // PLAYER
 let p={x:150,y:c.height/2};
 
-// JOYSTICK
-let joy={x:0,y:0,baseX:c.width/2,baseY:c.height*0.85,active:false};
+// JOYSTICK (auto drift instead of touch)
+let joy={x:0,y:0};
 
 // BIRDS
 let birds=[];
 
-// 🔥 FORCE START (works everywhere)
-function forceStart(){
- if(started) return;
+// AUTO START (no tap needed)
+let started=true;
 
- started=true;
- document.getElementById("start").style.display="none";
-
+// Try to enable sound after load
+window.addEventListener("load",()=>{
  const a=document.getElementById("ocean");
+ a.muted=false;
  a.play().catch(()=>{});
-
- joy.active=true;
-}
-
-// 🔥 ALL INPUT TYPES (nothing can fail now)
-["click","touchstart","pointerdown","mousedown"].forEach(evt=>{
- document.addEventListener(evt, e=>{
-   e.preventDefault();
-   forceStart();
- },{passive:false});
-});
-
-// MOVE
-addEventListener("touchmove",e=>{
- if(!joy.active)return;
- let t=e.touches[0];
-
- joy.x=t.clientX-joy.baseX;
- joy.y=t.clientY-joy.baseY;
-
- let m=50;
- joy.x=Math.max(-m,Math.min(m,joy.x));
- joy.y=Math.max(-m,Math.min(m,joy.y));
-},{passive:false});
-
-addEventListener("touchend",()=>{
- joy.active=false;
- joy.x=0;joy.y=0;
 });
 
 // DRAW
@@ -128,10 +90,10 @@ function loop(){
 
  draw();
 
- if(started && !gameOver){
+ if(!gameOver){
 
-   p.x += joy.x*0.08;
-   p.y += joy.y*0.08;
+   // AUTO MOVEMENT (so you can SEE it working)
+   p.y += Math.sin(time)*1.5;
 
    p.x=Math.max(0,Math.min(c.width,p.x));
    p.y=Math.max(0,Math.min(c.height,p.y));
@@ -162,17 +124,6 @@ function loop(){
  // PLAYER
  ctx.font="40px sans-serif";
  ctx.fillText("❤️",p.x-20,p.y+10);
-
- // JOYSTICK
- ctx.beginPath();
- ctx.arc(joy.baseX,joy.baseY,45,0,Math.PI*2);
- ctx.strokeStyle="white";
- ctx.stroke();
-
- ctx.beginPath();
- ctx.arc(joy.baseX+joy.x,joy.baseY+joy.y,20,0,Math.PI*2);
- ctx.fillStyle="white";
- ctx.fill();
 
  // UI
  ctx.fillStyle="white";
