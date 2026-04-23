@@ -1,257 +1,206 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Drift Hearts</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{margin:0;overflow:hidden;background:#000;}
-canvas{display:block;}
+body{margin:0;overflow:hidden;background:black;font-family:sans-serif}
+canvas{display:block}
 #start{
  position:fixed;inset:0;
  display:flex;align-items:center;justify-content:center;
- background:#000;color:#fff;
- font-size:22px;font-family:sans-serif;
- z-index:10;
+ background:black;color:white;font-size:24px;
+ z-index:10
 }
 </style>
 </head>
-
 <body>
 
 <div id="start">Tap to Start</div>
-<canvas id="game"></canvas>
+<canvas id="c"></canvas>
 
-<audio id="ocean" loop preload="auto" playsinline>
-<source src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3" type="audio/mpeg">
+<audio id="ocean" loop preload="auto">
+<source src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3">
 </audio>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+function resize(){c.width=innerWidth;c.height=innerHeight}
+resize();addEventListener("resize",resize);
 
-function resize(){
- canvas.width = window.innerWidth;
- canvas.height = window.innerHeight;
- joy.baseX = canvas.width/2;
- joy.baseY = canvas.height*0.85;
-}
-window.addEventListener("resize", resize);
-
-// GAME STATE
-let started=false, gameOver=false;
-let score=0, speed=2, time=0;
+// STATE
+let started=false,gameOver=false;
+let score=0,high=0,level=1,time=0,speed=2;
+let slowMo=0;
 
 // PLAYER
-let player={
- x:150,
- y:window.innerHeight/2,
- vx:0, vy:0,
- angle:0
-};
+let p={x:150,y:c.height/2,vx:0,vy:0};
 
 // JOYSTICK
-let joy={
- baseX:window.innerWidth/2,
- baseY:window.innerHeight*0.85,
- x:0,y:0,active:false
-};
+let joy={x:0,y:0,baseX:c.width/2,baseY:c.height*0.85,active:false};
 
 // ENTITIES
-let birds=[], hearts=[], particles=[];
+let birds=[],particles=[];
 
-// ✅ FIXED START (always starts game)
+// START
 function startGame(){
- if(started) return;
-
- started = true;
- document.getElementById("start").style.display = "none";
-
- const audio=document.getElementById("ocean");
-
- audio.play()
-   .then(()=>{ audio.volume=0.5; })
-   .catch(()=>{ /* ignore audio block */ });
+ if(started)return;
+ started=true;
+ document.getElementById("start").style.display="none";
+ let a=document.getElementById("ocean");
+ a.play().catch(()=>{});
 }
 
 // INPUT
-document.addEventListener("touchstart",e=>{
+addEventListener("touchstart",e=>{
  startGame();
-
  joy.active=true;
  let t=e.touches[0];
-
- joy.baseX = t.clientX;
- joy.baseY = t.clientY;
-},{passive:false});
-
-document.addEventListener("touchmove",e=>{
- if(!joy.active) return;
- let t=e.touches[0];
-
- joy.x = t.clientX - joy.baseX;
- joy.y = t.clientY - joy.baseY;
-
- let max=40;
- joy.x=Math.max(-max,Math.min(max,joy.x));
- joy.y=Math.max(-max,Math.min(max,joy.y));
-
- player.vx = joy.x * 0.05;
- player.vy = joy.y * 0.05;
-},{passive:false});
-
-document.addEventListener("touchend",()=>{
- joy.active=false;
- joy.x=0; joy.y=0;
+ joy.baseX=t.clientX;joy.baseY=t.clientY;
 });
+addEventListener("touchmove",e=>{
+ if(!joy.active)return;
+ let t=e.touches[0];
+ joy.x=t.clientX-joy.baseX;
+ joy.y=t.clientY-joy.baseY;
+ let m=50;
+ joy.x=Math.max(-m,Math.min(m,joy.x));
+ joy.y=Math.max(-m,Math.min(m,joy.y));
+});
+addEventListener("touchend",()=>{joy.active=false;joy.x=joy.y=0});
 
-// DRAW BEACH
-function drawScene(){
+// LOOP
+function loop(){
+ time+=0.01;
 
- time += 0.01;
+ // DIFFICULTY
+ if(Math.floor(time/30)+1>level){
+   level++;
+   speed+=0.5;
+ }
 
- let sky = ctx.createLinearGradient(0,0,0,canvas.height);
- sky.addColorStop(0,"#4fc3f7");
- sky.addColorStop(1,"#ffe0b2");
- ctx.fillStyle=sky;
- ctx.fillRect(0,0,canvas.width,canvas.height);
+ // SKY
+ let g=ctx.createLinearGradient(0,0,0,c.height);
+ g.addColorStop(0,"#4fc3f7");
+ g.addColorStop(1,"#ffe0b2");
+ ctx.fillStyle=g;
+ ctx.fillRect(0,0,c.width,c.height);
 
+ // SUN
  ctx.beginPath();
- ctx.arc(canvas.width*0.75, canvas.height*0.25, 60, 0, Math.PI*2);
- ctx.fillStyle="rgba(255,255,200,0.9)";
+ ctx.arc(c.width*0.8,c.height*0.2,60,0,Math.PI*2);
+ ctx.fillStyle="rgba(255,220,150,0.9)";
  ctx.fill();
 
+ // OCEAN
  ctx.fillStyle="#2ec4f0";
- ctx.fillRect(0,canvas.height*0.55,canvas.width,canvas.height*0.25);
+ ctx.fillRect(0,c.height*0.55,c.width,c.height);
 
- ctx.strokeStyle="rgba(255,255,255,0.6)";
+ // WAVES
+ ctx.strokeStyle="rgba(255,255,255,0.5)";
  for(let l=0;l<3;l++){
    ctx.beginPath();
-   for(let x=0;x<canvas.width;x+=10){
-     let y = canvas.height*0.55 +
-       Math.sin(x*0.02 + time*(2+l))*(5+l*3);
+   for(let x=0;x<c.width;x+=10){
+     let y=c.height*0.55+
+       Math.sin(x*0.02+time*(2+l))*(6+l*4);
      ctx.lineTo(x,y);
    }
    ctx.stroke();
  }
 
+ // SAND
  ctx.fillStyle="#f4d9a5";
- ctx.fillRect(0,canvas.height*0.8,canvas.width,canvas.height);
-}
+ ctx.fillRect(0,c.height*0.8,c.width,c.height);
 
-// LOOP
-function loop(){
+ if(started&&!gameOver){
 
- drawScene();
+   // MOVEMENT (smooth inertia)
+   p.vx+=(joy.x*0.01-p.vx)*0.1;
+   p.vy+=(joy.y*0.01-p.vy)*0.1;
+   p.x+=p.vx;
+   p.y+=p.vy;
 
- if(started && !gameOver){
+   // BOUNDS
+   p.x=Math.max(0,Math.min(c.width,p.x));
+   p.y=Math.max(0,Math.min(c.height,p.y));
 
-   player.x += player.vx;
-   player.y += player.vy;
-
-   player.x=Math.max(0,Math.min(canvas.width,player.x));
-   player.y=Math.max(0,Math.min(canvas.height,player.y));
-
-   player.angle = player.vy * 0.1;
-
-   if(Math.random()<0.02){
+   // SPAWN BIRDS
+   if(Math.random()<0.02+level*0.002){
      birds.push({
-       x:canvas.width,
-       y:Math.random()*canvas.height*0.6,
-       vy:(Math.random()-0.5)*1.5
+       x:c.width,
+       y:Math.random()*c.height*0.6,
+       phase:Math.random()*10
      });
    }
 
-   if(Math.random()<0.015){
-     hearts.push({
-       x:canvas.width,
-       y:Math.random()*canvas.height*0.6
-     });
-   }
-
+   // BIRDS
    birds.forEach(b=>{
-     b.x -= speed;
-     b.y += b.vy;
+     b.x-=speed;
+     b.y+=Math.sin(time+b.phase)*1.5;
 
-     ctx.fillStyle="#111";
-     ctx.fillRect(b.x,b.y,22,10);
-     ctx.fillRect(b.x+6,b.y-5,10,5);
+     ctx.fillStyle="#222";
+     ctx.fillRect(b.x,b.y,24,10);
+     ctx.fillRect(b.x+6,b.y-6,10,6);
 
-     if(Math.abs(player.x-b.x)<25 && Math.abs(player.y-b.y)<25){
+     let dx=p.x-b.x,dy=p.y-b.y;
+     let d=Math.sqrt(dx*dx+dy*dy);
+
+     // NEAR MISS
+     if(d<40 && d>25 && slowMo<=0){
+       slowMo=20;
+       score+=20;
+     }
+
+     // HIT
+     if(d<20){
        gameOver=true;
+       high=Math.max(high,score);
      }
    });
 
-   hearts.forEach(h=>{
-     h.x -= speed;
-
-     ctx.fillStyle="red";
-     ctx.beginPath();
-     ctx.arc(h.x,h.y,6,0,Math.PI*2);
-     ctx.fill();
-
-     if(Math.abs(player.x-h.x)<20 && Math.abs(player.y-h.y)<20){
-       score += 10;
-       h.hit=true;
-
-       for(let i=0;i<6;i++){
-         particles.push({
-           x:h.x,y:h.y,
-           vx:Math.random()*4-2,
-           vy:Math.random()*4-2,
-           life:25
-         });
-       }
-     }
+   // PARTICLES
+   particles.forEach(pt=>{
+     pt.x+=pt.vx;pt.y+=pt.vy;pt.life--;
+     ctx.fillStyle="rgba(255,100,100,"+(pt.life/20)+")";
+     ctx.fillRect(pt.x,pt.y,3,3);
    });
 
-   particles.forEach(p=>{
-     p.x+=p.vx;
-     p.y+=p.vy;
-     p.life--;
-     ctx.fillStyle="pink";
-     ctx.fillRect(p.x,p.y,2,2);
-   });
+   birds=birds.filter(b=>b.x>-50);
+   particles=particles.filter(p=>p.life>0);
 
-   birds = birds.filter(b=>b.x>-50);
-   hearts = hearts.filter(h=>!h.hit && h.x>-50);
-   particles = particles.filter(p=>p.life>0);
-
-   speed += 0.0003;
    score++;
+
+   // SLOW MOTION
+   if(slowMo>0){
+     slowMo--;
+     speed*=0.98;
+   }
  }
 
- ctx.save();
- ctx.translate(player.x,player.y);
- ctx.rotate(player.angle);
- ctx.font="36px sans-serif";
- ctx.fillText("❤️",-18,10);
- ctx.restore();
+ // PLAYER
+ ctx.font="40px sans-serif";
+ ctx.fillText("❤️",p.x-20,p.y+10);
 
+ // JOYSTICK
  ctx.beginPath();
  ctx.arc(joy.baseX,joy.baseY,40,0,Math.PI*2);
  ctx.strokeStyle="white";
  ctx.stroke();
-
  ctx.beginPath();
  ctx.arc(joy.baseX+joy.x,joy.baseY+joy.y,20,0,Math.PI*2);
  ctx.fillStyle="white";
  ctx.fill();
 
+ // UI
  ctx.fillStyle="white";
- ctx.font="18px sans-serif";
- ctx.fillText("Score: "+score,20,30);
+ ctx.fillText("Score "+score,20,40);
+ ctx.fillText("Best "+high,20,70);
 
  if(gameOver){
-   ctx.font="28px sans-serif";
-   ctx.fillText("Game Over",20,70);
+   ctx.fillText("GAME OVER",c.width/2-100,c.height/2);
  }
 
  requestAnimationFrame(loop);
 }
-
-resize();
 loop();
 </script>
 
