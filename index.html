@@ -1,10 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
-body { margin:0; overflow:hidden; background:#87ceeb; }
+body {
+ margin:0;
+ overflow:hidden;
+ background:#87ceeb;
+ touch-action:none; /* 🔥 stops zoom / camera movement */
+}
 canvas { display:block; }
+
 #ui{
  position:fixed;
  top:10px;
@@ -22,6 +28,8 @@ canvas { display:block; }
 <div id="ui"></div>
 <canvas id="c"></canvas>
 
+<audio id="music" loop src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b1f6c.mp3"></audio>
+
 <script>
 let c = document.getElementById("c");
 let ctx = c.getContext("2d");
@@ -31,14 +39,9 @@ c.height = innerHeight;
 
 let playing = true;
 let score = 0;
-let highScore = localStorage.getItem("highScore") || 0;
+let highScore = localStorage.getItem("hs") || 0;
 
-// timing
 let startTime = Date.now();
-
-// difficulty
-let speed = 3;
-let gapSize = 160;
 
 // player
 let p = { x:120, y:c.height/2, vy:0 };
@@ -47,32 +50,55 @@ let p = { x:120, y:c.height/2, vy:0 };
 let pipes = [];
 let spawn = 0;
 
-// input
-function flap(){
- if(!playing) return location.reload();
- p.vy = -7;
-}
-document.addEventListener("mousedown", flap);
-document.addEventListener("touchstart", flap);
+// difficulty base
+let baseSpeed = 2.5;
+let baseGap = 190;
 
-// loop
+// start music after first tap
+let started = false;
+
+// INPUT (FIXED)
+function flap(e){
+ e.preventDefault();
+
+ if(!started){
+   document.getElementById("music").volume = 0.3;
+   document.getElementById("music").play();
+   started = true;
+ }
+
+ if(!playing) return location.reload();
+
+ p.vy = -7; // tight control
+}
+document.addEventListener("touchstart", flap, {passive:false});
+document.addEventListener("mousedown", flap);
+
+// LOOP
 function loop(){
 
  let timeAlive = (Date.now() - startTime) / 1000;
-
- // difficulty scaling every 30s
  let level = Math.floor(timeAlive / 30);
 
- speed = 3 + level * 0.5;
- gapSize = 160 - level * 10;
- if(gapSize < 110) gapSize = 110;
+ // SMOOTH progression (not harsh jumps)
+ let speed = baseSpeed + level * 0.4;
+ let gap = baseGap - level * 10;
 
- // sky
+ if(gap < 110) gap = 110;
+
+ // SKY (better gradient)
  let sky = ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0,"#7ec8ff");
- sky.addColorStop(1,"#dff6ff");
+ sky.addColorStop(0,"#6ec6ff");
+ sky.addColorStop(1,"#ffffff");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
+
+ // subtle clouds
+ ctx.fillStyle="rgba(255,255,255,0.6)";
+ ctx.beginPath();
+ ctx.arc(200,100,30,0,Math.PI*2);
+ ctx.arc(240,100,25,0,Math.PI*2);
+ ctx.fill();
 
  // spawn pipes
  spawn--;
@@ -82,22 +108,28 @@ function loop(){
    pipes.push({
      x:c.width,
      top,
-     bottom:top+gapSize,
+     bottom:top+gap,
      scored:false
    });
 
-   spawn = 95 - level*5;
-   if(spawn < 50) spawn = 50;
+   spawn = 110 - level*5;
+   if(spawn < 60) spawn = 60;
  }
 
  // draw pipes
  pipes.forEach(pipe=>{
    pipe.x -= speed;
 
-   ctx.fillStyle="#ff6b81";
+   // gradient pipes (better look)
+   let grad = ctx.createLinearGradient(pipe.x,0,pipe.x+60,0);
+   grad.addColorStop(0,"#ff6b81");
+   grad.addColorStop(1,"#ff4757");
+
+   ctx.fillStyle = grad;
    ctx.fillRect(pipe.x, 0, 60, pipe.top);
    ctx.fillRect(pipe.x, pipe.bottom, 60, c.height);
 
+   // heart indicator
    ctx.font="24px sans-serif";
    ctx.fillText("💖", pipe.x+12, pipe.top+80);
 
@@ -116,7 +148,7 @@ function loop(){
 
  pipes = pipes.filter(pipe=>pipe.x>-60);
 
- // physics
+ // physics (tight, not floaty)
  p.vy += 0.5;
  if(p.vy > 8) p.vy = 8;
  p.y += p.vy;
@@ -124,24 +156,24 @@ function loop(){
  if(p.y < 0) p.y = 0;
  if(p.y > c.height) playing = false;
 
- // player
- ctx.shadowBlur = 10;
+ // player (glow)
+ ctx.shadowBlur = 15;
  ctx.shadowColor = "red";
- ctx.font="40px sans-serif";
+ ctx.font="42px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
  ctx.shadowBlur = 0;
 
- // high score save
+ // high score
  if(!playing && score > highScore){
    highScore = score;
-   localStorage.setItem("highScore", highScore);
+   localStorage.setItem("hs", highScore);
  }
 
  // UI
  document.getElementById("ui").innerText =
    playing
-   ? "Score: " + score + " | High: " + highScore + " | Level: " + (level+1)
-   : "Game Over — " + score + " | High: " + highScore + " (tap)";
+   ? "Score: "+score+" | High: "+highScore+" | Level: "+(level+1)
+   : "Game Over — "+score+" | High: "+highScore+" (tap)";
 
  requestAnimationFrame(loop);
 }
