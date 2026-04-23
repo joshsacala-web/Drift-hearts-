@@ -40,33 +40,32 @@ let score=0,time=0;
 // PLAYER
 let p={x:150,y:c.height/2};
 
-// JOYSTICK (fixed bottom)
+// JOYSTICK
 let joy={x:0,y:0,baseX:c.width/2,baseY:c.height*0.85,active:false};
 
 // BIRDS
 let birds=[];
 
-// START GAME (never fails)
-function startGame(){
+// 🔥 FORCE START (works everywhere)
+function forceStart(){
  if(started) return;
 
  started=true;
  document.getElementById("start").style.display="none";
 
- let a=document.getElementById("ocean");
- a.play().catch(()=>{}); // don't block
-}
+ const a=document.getElementById("ocean");
+ a.play().catch(()=>{});
 
-// 🔥 UNIVERSAL INPUT FIX
-function handleStart(e){
- e.preventDefault();
- startGame();
  joy.active=true;
 }
 
-document.addEventListener("pointerdown",handleStart);
-document.addEventListener("touchstart",handleStart,{passive:false});
-document.addEventListener("mousedown",handleStart);
+// 🔥 ALL INPUT TYPES (nothing can fail now)
+["click","touchstart","pointerdown","mousedown"].forEach(evt=>{
+ document.addEventListener(evt, e=>{
+   e.preventDefault();
+   forceStart();
+ },{passive:false});
+});
 
 // MOVE
 addEventListener("touchmove",e=>{
@@ -131,14 +130,12 @@ function loop(){
 
  if(started && !gameOver){
 
-   // CONTROL (tight)
    p.x += joy.x*0.08;
    p.y += joy.y*0.08;
 
    p.x=Math.max(0,Math.min(c.width,p.x));
    p.y=Math.max(0,Math.min(c.height,p.y));
 
-   // SPAWN
    if(Math.random()<0.02){
      birds.push({
        x:c.width,
@@ -146,7 +143,6 @@ function loop(){
      });
    }
 
-   // BIRDS
    birds.forEach(b=>{
      b.x-=3;
 
