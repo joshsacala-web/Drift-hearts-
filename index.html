@@ -34,8 +34,9 @@ const ctx = canvas.getContext("2d");
 function resize(){
  canvas.width = window.innerWidth;
  canvas.height = window.innerHeight;
+ joy.baseX = canvas.width/2;
+ joy.baseY = canvas.height*0.85;
 }
-resize();
 window.addEventListener("resize", resize);
 
 // GAME STATE
@@ -45,40 +46,44 @@ let score=0, speed=2, time=0;
 // PLAYER
 let player={
  x:150,
- y:canvas.height/2,
+ y:window.innerHeight/2,
  vx:0, vy:0,
  angle:0
 };
 
 // JOYSTICK
 let joy={
- baseX:canvas.width/2,
- baseY:canvas.height*0.85,
+ baseX:window.innerWidth/2,
+ baseY:window.innerHeight*0.85,
  x:0,y:0,active:false
 };
 
 // ENTITIES
 let birds=[], hearts=[], particles=[];
 
-// AUDIO
+// ✅ FIXED START (always starts game)
 function startGame(){
  if(started) return;
 
+ started = true;
+ document.getElementById("start").style.display = "none";
+
  const audio=document.getElementById("ocean");
 
- audio.play().then(()=>{
-   audio.volume=0.5;
-   started=true;
-   document.getElementById("start").style.display="none";
- }).catch(()=>{
-   document.getElementById("start").innerText="Tap again for sound";
- });
+ audio.play()
+   .then(()=>{ audio.volume=0.5; })
+   .catch(()=>{ /* ignore audio block */ });
 }
 
 // INPUT
 document.addEventListener("touchstart",e=>{
  startGame();
+
  joy.active=true;
+ let t=e.touches[0];
+
+ joy.baseX = t.clientX;
+ joy.baseY = t.clientY;
 },{passive:false});
 
 document.addEventListener("touchmove",e=>{
@@ -106,24 +111,20 @@ function drawScene(){
 
  time += 0.01;
 
- // SKY
  let sky = ctx.createLinearGradient(0,0,0,canvas.height);
  sky.addColorStop(0,"#4fc3f7");
  sky.addColorStop(1,"#ffe0b2");
  ctx.fillStyle=sky;
  ctx.fillRect(0,0,canvas.width,canvas.height);
 
- // SUN
  ctx.beginPath();
  ctx.arc(canvas.width*0.75, canvas.height*0.25, 60, 0, Math.PI*2);
  ctx.fillStyle="rgba(255,255,200,0.9)";
  ctx.fill();
 
- // OCEAN
  ctx.fillStyle="#2ec4f0";
  ctx.fillRect(0,canvas.height*0.55,canvas.width,canvas.height*0.25);
 
- // WAVES
  ctx.strokeStyle="rgba(255,255,255,0.6)";
  for(let l=0;l<3;l++){
    ctx.beginPath();
@@ -135,19 +136,17 @@ function drawScene(){
    ctx.stroke();
  }
 
- // SAND
  ctx.fillStyle="#f4d9a5";
  ctx.fillRect(0,canvas.height*0.8,canvas.width,canvas.height);
 }
 
-// GAME LOOP
+// LOOP
 function loop(){
 
  drawScene();
 
  if(started && !gameOver){
 
-   // movement
    player.x += player.vx;
    player.y += player.vy;
 
@@ -156,7 +155,6 @@ function loop(){
 
    player.angle = player.vy * 0.1;
 
-   // spawn birds
    if(Math.random()<0.02){
      birds.push({
        x:canvas.width,
@@ -165,7 +163,6 @@ function loop(){
      });
    }
 
-   // spawn hearts
    if(Math.random()<0.015){
      hearts.push({
        x:canvas.width,
@@ -173,7 +170,6 @@ function loop(){
      });
    }
 
-   // birds
    birds.forEach(b=>{
      b.x -= speed;
      b.y += b.vy;
@@ -187,7 +183,6 @@ function loop(){
      }
    });
 
-   // hearts
    hearts.forEach(h=>{
      h.x -= speed;
 
@@ -211,7 +206,6 @@ function loop(){
      }
    });
 
-   // particles
    particles.forEach(p=>{
      p.x+=p.vx;
      p.y+=p.vy;
@@ -228,7 +222,6 @@ function loop(){
    score++;
  }
 
- // player
  ctx.save();
  ctx.translate(player.x,player.y);
  ctx.rotate(player.angle);
@@ -236,7 +229,6 @@ function loop(){
  ctx.fillText("❤️",-18,10);
  ctx.restore();
 
- // joystick
  ctx.beginPath();
  ctx.arc(joy.baseX,joy.baseY,40,0,Math.PI*2);
  ctx.strokeStyle="white";
@@ -247,7 +239,6 @@ function loop(){
  ctx.fillStyle="white";
  ctx.fill();
 
- // UI
  ctx.fillStyle="white";
  ctx.font="18px sans-serif";
  ctx.fillText("Score: "+score,20,30);
@@ -260,6 +251,7 @@ function loop(){
  requestAnimationFrame(loop);
 }
 
+resize();
 loop();
 </script>
 
