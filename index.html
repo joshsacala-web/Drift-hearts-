@@ -3,178 +3,254 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
-body{
- margin:0;
- overflow:hidden;
- touch-action:none;
- background:#87ceeb;
-}
+body{margin:0;overflow:hidden;background:black;touch-action:none;}
 canvas{display:block;}
 #ui{
- position:fixed;
- top:10px;
- width:100%;
- text-align:center;
- color:white;
- font-family:sans-serif;
- text-shadow:0 0 6px black;
+ position:fixed;top:10px;width:100%;
+ text-align:center;color:white;
+ font-family:sans-serif;text-shadow:0 0 6px black;
 }
 </style>
 </head>
 <body>
 
-<div id="ui">Tap to Start</div>
+<div id="ui">Drag to Move</div>
 <canvas id="c"></canvas>
 
 <audio id="ocean" loop src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3"></audio>
 
 <script>
-const c = document.getElementById("c");
-const ctx = c.getContext("2d");
+const c=document.getElementById("c");
+const ctx=c.getContext("2d");
+c.width=innerWidth;
+c.height=innerHeight;
 
-c.width = innerWidth;
-c.height = innerHeight;
-
-let playing = false;
-let gameOver = false;
-let score = 0;
-let time = 0;
+let time=0;
+let playing=false, gameOver=false, score=0, combo=0;
+let speed=2;
 
 // player
-let p = { x:120, y:c.height/2, vy:0 };
+let p={x:150,y:c.height/2,vx:0,vy:0};
 
-// bird (ONLY ONE)
-let birds = [];
+// joystick
+let joy={active:false,startX:0,startY:0,x:0,y:0};
 
-// audio control
-let audioStarted = false;
+// entities
+let birds=[],hearts=[],particles=[];
 
 // INPUT
-function flap(e){
+function start(e){
  e.preventDefault();
+ let t=e.touches?e.touches[0]:e;
+ joy.active=true;
+ joy.startX=t.clientX;
+ joy.startY=t.clientY;
 
  if(!playing){
-   playing = true;
-   gameOver = false;
-   score = 0;
-   birds = [];
- }
-
- if(!audioStarted){
-   let ocean = document.getElementById("ocean");
-   ocean.volume = 0.5;
+   playing=true;
+   let ocean=document.getElementById("ocean");
+   ocean.volume=0.5;
    ocean.play().catch(()=>{});
-   audioStarted = true;
  }
-
- if(gameOver){
-   location.reload();
- }
-
- p.vy = -6;
 }
+function move(e){
+ if(!joy.active)return;
+ let t=e.touches?e.touches[0]:e;
+ joy.x=t.clientX-joy.startX;
+ joy.y=t.clientY-joy.startY;
+ p.vx=joy.x*0.04;
+ p.vy=joy.y*0.04;
+}
+function end(){
+ joy.active=false;
+ p.vx*=0.6;
+ p.vy*=0.6;
+}
+document.addEventListener("touchstart",start,{passive:false});
+document.addEventListener("touchmove",move,{passive:false});
+document.addEventListener("touchend",end);
+document.addEventListener("mousedown",start);
+document.addEventListener("mousemove",move);
+document.addEventListener("mouseup",end);
 
-document.addEventListener("touchstart", flap, {passive:false});
-document.addEventListener("mousedown", flap);
+// DRAW BEACH
+function drawBeach(){
+
+ time+=0.01;
+
+ // sky
+ let sky=ctx.createLinearGradient(0,0,0,c.height);
+ sky.addColorStop(0,"#ffb347");
+ sky.addColorStop(0.4,"#ffcc88");
+ sky.addColorStop(1,"#ffe6b3");
+ ctx.fillStyle=sky;
+ ctx.fillRect(0,0,c.width,c.height);
+
+ // sun
+ let sunY=c.height*0.25;
+ let sun=ctx.createRadialGradient(c.width*0.7,sunY,10,c.width*0.7,sunY,120);
+ sun.addColorStop(0,"rgba(255,255,200,1)");
+ sun.addColorStop(1,"rgba(255,255,200,0)");
+ ctx.fillStyle=sun;
+ ctx.beginPath();
+ ctx.arc(c.width*0.7,sunY,120,0,Math.PI*2);
+ ctx.fill();
+
+ // clouds
+ ctx.fillStyle="rgba(255,255,255,0.5)";
+ for(let i=0;i<5;i++){
+   let x=(i*300 + time*10)%c.width;
+   ctx.beginPath();
+   ctx.arc(x,100,30,0,Math.PI*2);
+   ctx.arc(x+40,100,25,0,Math.PI*2);
+   ctx.fill();
+ }
+
+ // ocean
+ ctx.fillStyle="#2ec4f0";
+ ctx.fillRect(0,c.height*0.55,c.width,c.height*0.25);
+
+ // waves
+ for(let layer=0;layer<3;layer++){
+   ctx.beginPath();
+   for(let x=0;x<c.width;x+=8){
+     let y=c.height*0.55 +
+       Math.sin(x*0.015 + time*(2+layer))* (6+layer*3);
+     ctx.lineTo(x,y);
+   }
+   ctx.strokeStyle=`rgba(255,255,255,${0.4-layer*0.1})`;
+   ctx.stroke();
+ }
+
+ // reflection
+ ctx.strokeStyle="rgba(255,255,200,0.3)";
+ ctx.beginPath();
+ for(let y=c.height*0.55;y<c.height*0.8;y+=4){
+   let w=50*Math.sin(y*0.05+time*2);
+   ctx.moveTo(c.width*0.7-w,y);
+   ctx.lineTo(c.width*0.7+w,y);
+ }
+ ctx.stroke();
+
+ // sand
+ ctx.fillStyle="#f4d9a5";
+ ctx.fillRect(0,c.height*0.75,c.width,c.height);
+
+ // sand texture
+ for(let i=0;i<120;i++){
+   let x=Math.random()*c.width;
+   let y=c.height*0.75 + Math.random()*100;
+   ctx.fillStyle="rgba(0,0,0,0.05)";
+   ctx.fillRect(x,y,1,1);
+ }
+}
 
 // LOOP
 function loop(){
 
- time += 0.01;
+ drawBeach();
 
- // 🌅 SKY
- let sky = ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0,"#4fc3f7");
- sky.addColorStop(0.6,"#b3e5fc");
- sky.addColorStop(1,"#ffe0b2");
- ctx.fillStyle = sky;
- ctx.fillRect(0,0,c.width,c.height);
-
- // 🌊 OCEAN
- ctx.fillStyle = "#26c6da";
- ctx.fillRect(0, c.height*0.6, c.width, c.height*0.15);
-
- // 🌊 FOAM WAVES
- ctx.strokeStyle = "rgba(255,255,255,0.7)";
- ctx.beginPath();
- for(let x=0;x<c.width;x+=8){
-   let y = c.height*0.6 + Math.sin(x*0.02 + time*3)*6;
-   ctx.lineTo(x,y);
- }
- ctx.stroke();
-
- // 🏖 SAND
- ctx.fillStyle = "#f4e2b0";
- ctx.fillRect(0, c.height*0.75, c.width, c.height);
-
- // 🐦 SPAWN ONE BIRD ONLY
- if(playing && !gameOver && birds.length === 0){
-   birds.push({
-     x:c.width,
-     y:Math.random()*c.height*0.5+50,
-     phase:Math.random()*10
-   });
- }
-
- // 🐦 BIRD LOGIC
- birds.forEach(b=>{
-   b.x -= 2.2;
-
-   // swoop
-   b.phase += 0.04;
-   b.y += Math.sin(b.phase)*1.2;
-
-   // slight tracking toward player
-   b.y += (p.y - b.y)*0.002;
-
-   ctx.font="32px sans-serif";
-   ctx.fillText("🐦", b.x, b.y);
-
-   // collision
-   if(
-     p.x < b.x+30 &&
-     p.x+30 > b.x &&
-     p.y < b.y+30 &&
-     p.y+30 > b.y
-   ){
-     gameOver = true;
-   }
-
-   // score when passed
-   if(b.x < p.x && !b.passed){
-     score++;
-     b.passed = true;
-   }
- });
-
- birds = birds.filter(b=>b.x > -50);
-
- // physics
  if(playing && !gameOver){
-   p.vy += 0.45;
-   if(p.vy > 7) p.vy = 7;
-   p.y += p.vy;
 
-   if(p.y < 0) p.y = 0;
-   if(p.y > c.height) gameOver = true;
+   // spawn birds
+   if(Math.random()<0.02){
+     birds.push({
+       x:c.width,
+       y:Math.random()*c.height*0.6,
+       vy:(p.y-Math.random()*c.height)*0.002
+     });
+   }
+
+   // spawn hearts
+   if(Math.random()<0.015){
+     hearts.push({x:c.width,y:Math.random()*c.height*0.6});
+   }
+
+   // move player
+   p.x+=p.vx;
+   p.y+=p.vy;
+
+   p.x=Math.max(0,Math.min(c.width,p.x));
+   p.y=Math.max(0,Math.min(c.height,p.y));
+
+   // birds
+   birds.forEach(b=>{
+     b.x-=speed;
+     b.y+=b.vy;
+
+     ctx.font="30px sans-serif";
+     ctx.fillText("🐦",b.x,b.y);
+
+     if(Math.abs(p.x-b.x)<30 && Math.abs(p.y-b.y)<30){
+       gameOver=true;
+     }
+   });
+
+   // hearts
+   hearts.forEach(h=>{
+     h.x-=speed;
+
+     ctx.font="24px sans-serif";
+     ctx.fillText("💖",h.x,h.y);
+
+     if(Math.abs(p.x-h.x)<30 && Math.abs(p.y-h.y)<30){
+       score+=10+combo;
+       combo++;
+       h.collected=true;
+
+       for(let i=0;i<6;i++){
+         particles.push({
+           x:h.x,y:h.y,
+           vx:Math.random()*4-2,
+           vy:Math.random()*4-2,
+           life:20
+         });
+       }
+     }
+   });
+
+   // particles
+   particles.forEach(pt=>{
+     pt.x+=pt.vx;
+     pt.y+=pt.vy;
+     pt.life--;
+     ctx.fillStyle="pink";
+     ctx.fillRect(pt.x,pt.y,3,3);
+   });
+
+   birds=birds.filter(b=>b.x>-50);
+   hearts=hearts.filter(h=>!h.collected && h.x>-50);
+   particles=particles.filter(pt=>pt.life>0);
+
+   // difficulty
+   speed+=0.0003;
+   score++;
  }
 
- // ❤️ PLAYER
- ctx.shadowBlur = 10;
- ctx.shadowColor = "red";
+ // player
  ctx.font="42px sans-serif";
- ctx.fillText("❤️", p.x, p.y);
- ctx.shadowBlur = 0;
+ ctx.fillText("❤️",p.x,p.y);
+
+ // joystick UI
+ if(joy.active){
+   ctx.beginPath();
+   ctx.arc(joy.startX,joy.startY,40,0,Math.PI*2);
+   ctx.strokeStyle="white";
+   ctx.stroke();
+
+   ctx.beginPath();
+   ctx.arc(joy.startX+joy.x,joy.startY+joy.y,20,0,Math.PI*2);
+   ctx.fillStyle="white";
+   ctx.fill();
+ }
 
  // UI
  if(!playing){
-   document.getElementById("ui").innerText = "Tap to Start";
- } 
- else if(gameOver){
-   document.getElementById("ui").innerText = "Game Over — " + score + " (tap)";
- } 
- else{
-   document.getElementById("ui").innerText = "Score: " + score;
+   ui.innerText="Drag to Move";
+ } else if(gameOver){
+   ui.innerText="Game Over — "+score;
+ } else{
+   ui.innerText="Score: "+score+" | Combo: "+combo;
  }
 
  requestAnimationFrame(loop);
