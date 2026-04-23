@@ -1,7 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beach Game</title>
+
 <style>
 body{margin:0;overflow:hidden;background:black;}
 canvas{display:block;}
@@ -13,22 +16,30 @@ canvas{display:block;}
 }
 </style>
 </head>
+
 <body>
 
 <div id="start">Tap to Start</div>
 <canvas id="c"></canvas>
 
 <audio id="ocean" loop preload="auto" playsinline>
-<source src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3">
+<source src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3" type="audio/mpeg">
 </audio>
 
 <script>
+window.onload = function(){
+
 const c=document.getElementById("c");
 const ctx=c.getContext("2d");
-c.width=innerWidth;
-c.height=innerHeight;
 
-// GAME STATE
+function resize(){
+ c.width=window.innerWidth;
+ c.height=window.innerHeight;
+}
+resize();
+window.addEventListener("resize",resize);
+
+// STATE
 let started=false, gameOver=false;
 let score=0, speed=2, time=0;
 
@@ -82,29 +93,25 @@ document.addEventListener("touchend",()=>{
  joy.x=0; joy.y=0;
 });
 
-// DRAW SCENE
+// DRAW
 function drawScene(){
 
  time+=0.01;
 
- // SKY
  let sky=ctx.createLinearGradient(0,0,0,c.height);
  sky.addColorStop(0,"#4fc3f7");
  sky.addColorStop(1,"#ffe0b2");
  ctx.fillStyle=sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // SUN
  ctx.beginPath();
  ctx.arc(c.width*0.75,c.height*0.25,60,0,Math.PI*2);
  ctx.fillStyle="rgba(255,255,200,0.9)";
  ctx.fill();
 
- // OCEAN BASE
  ctx.fillStyle="#2ec4f0";
  ctx.fillRect(0,c.height*0.55,c.width,c.height*0.25);
 
- // WAVES (animated)
  ctx.strokeStyle="rgba(255,255,255,0.6)";
  for(let layer=0;layer<3;layer++){
    ctx.beginPath();
@@ -116,7 +123,6 @@ function drawScene(){
    ctx.stroke();
  }
 
- // SAND
  ctx.fillStyle="#f4d9a5";
  ctx.fillRect(0,c.height*0.8,c.width,c.height);
 }
@@ -128,17 +134,14 @@ function loop(){
 
  if(started && !gameOver){
 
-   // player movement
    p.x+=p.vx;
    p.y+=p.vy;
 
    p.x=Math.max(0,Math.min(c.width,p.x));
    p.y=Math.max(0,Math.min(c.height,p.y));
 
-   // tilt effect
    p.angle = p.vy * 0.1;
 
-   // spawn birds
    if(Math.random()<0.02){
      birds.push({
        x:c.width,
@@ -147,17 +150,14 @@ function loop(){
      });
    }
 
-   // spawn hearts
    if(Math.random()<0.015){
      hearts.push({x:c.width,y:Math.random()*c.height*0.6});
    }
 
-   // BIRDS
    birds.forEach(b=>{
      b.x-=speed;
      b.y+=b.vy;
 
-     // simple sprite look (not emoji spam)
      ctx.fillStyle="black";
      ctx.fillRect(b.x,b.y,20,10);
      ctx.fillRect(b.x+5,b.y-5,10,5);
@@ -167,7 +167,6 @@ function loop(){
      }
    });
 
-   // HEARTS
    hearts.forEach(h=>{
      h.x-=speed;
 
@@ -180,7 +179,6 @@ function loop(){
        score+=10;
        h.hit=true;
 
-       // particles
        for(let i=0;i<5;i++){
          particles.push({
            x:h.x,y:h.y,
@@ -192,7 +190,6 @@ function loop(){
      }
    });
 
-   // PARTICLES
    particles.forEach(pt=>{
      pt.x+=pt.vx;
      pt.y+=pt.vy;
@@ -209,7 +206,6 @@ function loop(){
    score++;
  }
 
- // PLAYER (with rotation)
  ctx.save();
  ctx.translate(p.x,p.y);
  ctx.rotate(p.angle);
@@ -217,7 +213,6 @@ function loop(){
  ctx.fillText("❤️",-18,10);
  ctx.restore();
 
- // JOYSTICK
  ctx.beginPath();
  ctx.arc(joy.baseX,joy.baseY,40,0,Math.PI*2);
  ctx.strokeStyle="white";
@@ -228,7 +223,6 @@ function loop(){
  ctx.fillStyle="white";
  ctx.fill();
 
- // UI
  if(gameOver){
    ctx.fillStyle="white";
    ctx.fillText("Game Over - "+score,20,40);
@@ -238,6 +232,8 @@ function loop(){
 }
 
 loop();
+
+};
 </script>
 
 </body>
