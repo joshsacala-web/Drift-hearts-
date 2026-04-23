@@ -5,7 +5,6 @@
 <style>
 body { margin:0; overflow:hidden; background:#87ceeb; }
 canvas { display:block; }
-
 #ui{
  position:fixed;
  top:10px;
@@ -13,89 +12,58 @@ canvas { display:block; }
  text-align:center;
  color:white;
  font-family:sans-serif;
- text-shadow:0 0 5px black;
- font-size:18px;
-}
-
-#start{
- position:fixed;
- width:100%; height:100%;
- background:rgba(0,0,0,0.6);
- display:flex;
- flex-direction:column;
- justify-content:center;
- align-items:center;
- color:white;
- font-family:sans-serif;
- text-align:center;
-}
-
-button{
- padding:10px 20px;
- font-size:18px;
- margin-top:15px;
+ text-shadow:0 0 8px black;
 }
 </style>
 </head>
 <body>
 
 <div id="ui">Score: 0</div>
-
-<div id="start">
- <h2>❤️ Flappy Beach</h2>
- <p>Tap to fly through wave gaps</p>
- <p>Avoid the crashing waves 🌊</p>
- <button onclick="startGame()">Start</button>
-</div>
-
 <canvas id="c"></canvas>
-
-<audio id="music" loop src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b1f6c.mp3"></audio>
 
 <script>
 let c = document.getElementById("c");
 let ctx = c.getContext("2d");
-
 c.width = innerWidth;
 c.height = innerHeight;
 
-let playing = false;
+let playing = true;
 let score = 0;
+let combo = 0;
 
 // player
-let p = {
- x: 120,
- y: c.height/2,
- vy: 0
-};
+let p = { x:120, y:c.height/2, vy:0 };
 
 // waves
 let waves = [];
 let spawn = 0;
 
-// start
-function startGame(){
- document.getElementById("start").style.display="none";
- playing = true;
- document.getElementById("music").volume = 0.3;
- document.getElementById("music").play();
-}
+// hearts
+let items = [];
+
+// particles
+let particles = [];
 
 // input
-function flap(){
- if(!playing) return;
- p.vy = -8;
-}
 document.addEventListener("mousedown", flap);
 document.addEventListener("touchstart", flap);
 
-// restart
-function restart(){
- score = 0;
- waves = [];
- p.y = c.height/2;
- p.vy = 0;
- playing = true;
+function flap(){
+ if(!playing) return location.reload();
+ p.vy = -8;
+}
+
+// particle burst
+function burst(x,y,color){
+ for(let i=0;i<10;i++){
+   particles.push({
+     x,y,
+     vx:(Math.random()-0.5)*4,
+     vy:(Math.random()-0.5)*4,
+     life:30,
+     color
+   });
+ }
 }
 
 // loop
@@ -105,7 +73,7 @@ function loop(){
  let sky = ctx.createLinearGradient(0,0,0,c.height);
  sky.addColorStop(0,"#6ec6ff");
  sky.addColorStop(1,"#ffe0b3");
- ctx.fillStyle = sky;
+ ctx.fillStyle=sky;
  ctx.fillRect(0,0,c.width,c.height);
 
  // OCEAN
@@ -113,81 +81,99 @@ function loop(){
  ctx.fillRect(0,c.height*0.6,c.width,c.height);
 
  // spawn waves
- if(playing){
-   spawn--;
-   if(spawn<=0){
-     let gap = 150;
-     let top = Math.random()*(c.height*0.4);
-
-     waves.push({
-       x:c.width,
-       top:top,
-       bottom:top+gap,
-       scored:false
-     });
-
-     spawn = 90;
-   }
+ spawn--;
+ if(spawn<=0){
+   let gap = 140;
+   let top = Math.random()*(c.height*0.4);
+   waves.push({ x:c.width, top, bottom:top+gap });
+   spawn = 80;
  }
 
- // draw waves (curved)
+ // spawn hearts
+ if(Math.random()<0.03){
+   items.push({ x:c.width, y:Math.random()*c.height*0.6 });
+ }
+
+ // draw waves (animated)
  waves.forEach(w=>{
    w.x -= 3;
 
-   // TOP WAVE
+   let t = Date.now()*0.002;
+
    ctx.beginPath();
-   ctx.moveTo(w.x, 0);
-   ctx.lineTo(w.x+60, 0);
-   ctx.quadraticCurveTo(w.x+30, w.top-30, w.x, w.top);
+   ctx.moveTo(w.x,0);
+   ctx.lineTo(w.x+60,0);
+   ctx.quadraticCurveTo(w.x+30, w.top-30+Math.sin(t)*5, w.x, w.top);
    ctx.fillStyle="white";
    ctx.fill();
 
-   // BOTTOM WAVE
    ctx.beginPath();
-   ctx.moveTo(w.x, c.height);
-   ctx.lineTo(w.x+60, c.height);
-   ctx.quadraticCurveTo(w.x+30, w.bottom+30, w.x, w.bottom);
+   ctx.moveTo(w.x,c.height);
+   ctx.lineTo(w.x+60,c.height);
+   ctx.quadraticCurveTo(w.x+30, w.bottom+30+Math.sin(t)*5, w.x, w.bottom);
    ctx.fill();
 
-   // score
-   if(!w.scored && w.x < p.x){
-     score++;
-     w.scored = true;
-   }
-
-   // collision
-   if(
-     p.x > w.x && p.x < w.x+60 &&
-     (p.y < w.top || p.y > w.bottom)
-   ){
-     playing = false;
+   if(p.x>w.x && p.x<w.x+60 && (p.y<w.top || p.y>w.bottom)){
+     playing=false;
+     burst(p.x,p.y,"red");
    }
  });
 
- waves = waves.filter(w=>w.x > -60);
+ waves = waves.filter(w=>w.x>-60);
+
+ // draw hearts
+ items.forEach(i=>{
+   i.x -= 3;
+
+   ctx.shadowBlur = 15;
+   ctx.shadowColor = "pink";
+   ctx.font="22px sans-serif";
+   ctx.fillText("💖", i.x, i.y);
+   ctx.shadowBlur = 0;
+
+   if(Math.abs(i.x-p.x)<20 && Math.abs(i.y-p.y)<20){
+     combo++;
+     score += 5 * combo;
+     i.collected = true;
+     burst(i.x,i.y,"pink");
+   }
+ });
+
+ items = items.filter(i=>!i.collected && i.x>-20);
 
  // physics
  p.vy += 0.4;
  p.y += p.vy;
 
- if(p.y > c.height || p.y < 0){
-   playing = false;
+ if(p.y<0 || p.y>c.height){
+   playing=false;
+   combo = 0;
  }
 
- // player
+ // player glow
+ ctx.shadowBlur = 15;
+ ctx.shadowColor = "red";
  ctx.font="40px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
+ ctx.shadowBlur = 0;
 
- // UI
+ // particles
+ particles.forEach(pt=>{
+   pt.x += pt.vx;
+   pt.y += pt.vy;
+   pt.life--;
+
+   ctx.fillStyle = pt.color;
+   ctx.fillRect(pt.x, pt.y, 3, 3);
+ });
+
+ particles = particles.filter(p=>p.life>0);
+
+ // score + combo UI
  document.getElementById("ui").innerText =
    playing
-   ? "Score: " + score
-   : "Game Over — " + score + " (tap to restart)";
-
- // restart click
- if(!playing){
-   document.addEventListener("click", restart, {once:true});
- }
+   ? "Score: "+Math.floor(score)+" | Combo: "+combo
+   : "Game Over — "+Math.floor(score)+" (tap)";
 
  requestAnimationFrame(loop);
 }
