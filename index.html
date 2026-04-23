@@ -7,6 +7,7 @@ body{
  margin:0;
  overflow:hidden;
  touch-action:none;
+ background:#87ceeb;
 }
 canvas{display:block;}
 #ui{
@@ -38,76 +39,95 @@ let playing = false;
 let gameOver = false;
 let score = 0;
 let time = 0;
-let slowMo = 1;
 
 // player
 let p = { x:120, y:c.height/2, vy:0 };
 
-// birds
+// bird (ONLY ONE)
 let birds = [];
-let spawnTimer = 0;
 
-// input
-function flap(){
+// audio control
+let audioStarted = false;
+
+// INPUT
+function flap(e){
+ e.preventDefault();
+
  if(!playing){
    playing = true;
-   document.getElementById("ocean").volume = 0.4;
-   document.getElementById("ocean").play();
-   return;
+   gameOver = false;
+   score = 0;
+   birds = [];
  }
 
- if(gameOver) location.reload();
+ if(!audioStarted){
+   let ocean = document.getElementById("ocean");
+   ocean.volume = 0.5;
+   ocean.play().catch(()=>{});
+   audioStarted = true;
+ }
+
+ if(gameOver){
+   location.reload();
+ }
 
  p.vy = -6;
 }
+
 document.addEventListener("touchstart", flap, {passive:false});
 document.addEventListener("mousedown", flap);
 
-// loop
+// LOOP
 function loop(){
 
- time += 0.002;
+ time += 0.01;
 
- // 🌅 sky transition
+ // 🌅 SKY
  let sky = ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0, `hsl(${200 - time*50},80%,70%)`);
- sky.addColorStop(1, `hsl(${40 - time*20},80%,85%)`);
+ sky.addColorStop(0,"#4fc3f7");
+ sky.addColorStop(0.6,"#b3e5fc");
+ sky.addColorStop(1,"#ffe0b2");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // 🌊 animated waves
- ctx.strokeStyle = "rgba(255,255,255,0.6)";
- for(let i=0;i<3;i++){
-   ctx.beginPath();
-   for(let x=0;x<c.width;x+=10){
-     let y = c.height*0.65 + Math.sin(x*0.02 + time*3 + i)*10;
-     ctx.lineTo(x,y);
-   }
-   ctx.stroke();
+ // 🌊 OCEAN
+ ctx.fillStyle = "#26c6da";
+ ctx.fillRect(0, c.height*0.6, c.width, c.height*0.15);
+
+ // 🌊 FOAM WAVES
+ ctx.strokeStyle = "rgba(255,255,255,0.7)";
+ ctx.beginPath();
+ for(let x=0;x<c.width;x+=8){
+   let y = c.height*0.6 + Math.sin(x*0.02 + time*3)*6;
+   ctx.lineTo(x,y);
+ }
+ ctx.stroke();
+
+ // 🏖 SAND
+ ctx.fillStyle = "#f4e2b0";
+ ctx.fillRect(0, c.height*0.75, c.width, c.height);
+
+ // 🐦 SPAWN ONE BIRD ONLY
+ if(playing && !gameOver && birds.length === 0){
+   birds.push({
+     x:c.width,
+     y:Math.random()*c.height*0.5+50,
+     phase:Math.random()*10
+   });
  }
 
- // spawn birds
- if(playing && !gameOver){
-   spawnTimer--;
-   if(spawnTimer <= 0){
-     birds.push({
-       x:c.width,
-       y:Math.random()*c.height*0.5+50,
-       phase:Math.random()*10
-     });
-     spawnTimer = 100;
-   }
- }
-
- // birds movement (🐦 swoop)
+ // 🐦 BIRD LOGIC
  birds.forEach(b=>{
-   b.x -= 3 * slowMo;
-   b.phase += 0.05;
+   b.x -= 2.2;
 
-   // swoop motion
-   b.y += Math.sin(b.phase) * 1.5;
+   // swoop
+   b.phase += 0.04;
+   b.y += Math.sin(b.phase)*1.2;
 
-   ctx.font="30px sans-serif";
+   // slight tracking toward player
+   b.y += (p.y - b.y)*0.002;
+
+   ctx.font="32px sans-serif";
    ctx.fillText("🐦", b.x, b.y);
 
    // collision
@@ -120,11 +140,10 @@ function loop(){
      gameOver = true;
    }
 
-   // ✨ near miss
-   let dist = Math.abs(p.x - b.x) + Math.abs(p.y - b.y);
-   if(dist < 70 && dist > 40){
-     slowMo = 0.5;
-     score += 2; // bonus
+   // score when passed
+   if(b.x < p.x && !b.passed){
+     score++;
+     b.passed = true;
    }
  });
 
@@ -133,29 +152,28 @@ function loop(){
  // physics
  if(playing && !gameOver){
    p.vy += 0.45;
+   if(p.vy > 7) p.vy = 7;
    p.y += p.vy;
-   score++;
 
    if(p.y < 0) p.y = 0;
    if(p.y > c.height) gameOver = true;
  }
 
- // reset slowmo gradually
- slowMo += (1 - slowMo) * 0.05;
-
- // player
+ // ❤️ PLAYER
  ctx.shadowBlur = 10;
  ctx.shadowColor = "red";
- ctx.font="40px sans-serif";
+ ctx.font="42px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
  ctx.shadowBlur = 0;
 
  // UI
  if(!playing){
    document.getElementById("ui").innerText = "Tap to Start";
- } else if(gameOver){
+ } 
+ else if(gameOver){
    document.getElementById("ui").innerText = "Game Over — " + score + " (tap)";
- } else {
+ } 
+ else{
    document.getElementById("ui").innerText = "Score: " + score;
  }
 
