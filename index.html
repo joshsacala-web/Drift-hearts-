@@ -13,13 +13,13 @@ canvas { display:block; }
  color:white;
  font-family:sans-serif;
  text-shadow:0 0 8px black;
- font-size:20px;
+ font-size:18px;
 }
 </style>
 </head>
 <body>
 
-<div id="ui">Score: 0</div>
+<div id="ui"></div>
 <canvas id="c"></canvas>
 
 <script>
@@ -31,22 +31,26 @@ c.height = innerHeight;
 
 let playing = true;
 let score = 0;
+let highScore = localStorage.getItem("highScore") || 0;
+
+// timing
+let startTime = Date.now();
+
+// difficulty
+let speed = 3;
+let gapSize = 160;
 
 // player
-let p = {
- x: 120,
- y: c.height/2,
- vy: 0
-};
+let p = { x:120, y:c.height/2, vy:0 };
 
-// obstacles
+// pipes
 let pipes = [];
 let spawn = 0;
 
 // input
 function flap(){
  if(!playing) return location.reload();
- p.vy = -8;
+ p.vy = -7;
 }
 document.addEventListener("mousedown", flap);
 document.addEventListener("touchstart", flap);
@@ -54,51 +58,54 @@ document.addEventListener("touchstart", flap);
 // loop
 function loop(){
 
- // sky gradient
+ let timeAlive = (Date.now() - startTime) / 1000;
+
+ // difficulty scaling every 30s
+ let level = Math.floor(timeAlive / 30);
+
+ speed = 3 + level * 0.5;
+ gapSize = 160 - level * 10;
+ if(gapSize < 110) gapSize = 110;
+
+ // sky
  let sky = ctx.createLinearGradient(0,0,0,c.height);
  sky.addColorStop(0,"#7ec8ff");
  sky.addColorStop(1,"#dff6ff");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // spawn
+ // spawn pipes
  spawn--;
  if(spawn<=0){
-   let gap = 140;
    let top = Math.random()*(c.height-300);
 
    pipes.push({
      x:c.width,
      top,
-     bottom:top+gap,
+     bottom:top+gapSize,
      scored:false
    });
 
-   spawn = 90;
+   spawn = 95 - level*5;
+   if(spawn < 50) spawn = 50;
  }
 
- // draw obstacles
+ // draw pipes
  pipes.forEach(pipe=>{
-   pipe.x -= 3;
+   pipe.x -= speed;
 
-   // top block
    ctx.fillStyle="#ff6b81";
    ctx.fillRect(pipe.x, 0, 60, pipe.top);
-
-   // bottom block
    ctx.fillRect(pipe.x, pipe.bottom, 60, c.height);
 
-   // heart gap indicator
-   ctx.font="30px sans-serif";
-   ctx.fillText("💖", pipe.x+10, pipe.top+70);
+   ctx.font="24px sans-serif";
+   ctx.fillText("💖", pipe.x+12, pipe.top+80);
 
-   // score
    if(!pipe.scored && pipe.x < p.x){
      score++;
      pipe.scored = true;
    }
 
-   // collision
    if(
      p.x > pipe.x && p.x < pipe.x+60 &&
      (p.y < pipe.top || p.y > pipe.bottom)
@@ -110,25 +117,31 @@ function loop(){
  pipes = pipes.filter(pipe=>pipe.x>-60);
 
  // physics
- p.vy += 0.4;
+ p.vy += 0.5;
+ if(p.vy > 8) p.vy = 8;
  p.y += p.vy;
 
- if(p.y < 0 || p.y > c.height){
-   playing = false;
- }
+ if(p.y < 0) p.y = 0;
+ if(p.y > c.height) playing = false;
 
- // player glow
- ctx.shadowBlur = 15;
+ // player
+ ctx.shadowBlur = 10;
  ctx.shadowColor = "red";
  ctx.font="40px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
  ctx.shadowBlur = 0;
 
+ // high score save
+ if(!playing && score > highScore){
+   highScore = score;
+   localStorage.setItem("highScore", highScore);
+ }
+
  // UI
  document.getElementById("ui").innerText =
    playing
-   ? "Score: " + score
-   : "Game Over — " + score + " (tap to restart)";
+   ? "Score: " + score + " | High: " + highScore + " | Level: " + (level+1)
+   : "Game Over — " + score + " | High: " + highScore + " (tap)";
 
  requestAnimationFrame(loop);
 }
