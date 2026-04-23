@@ -31,16 +31,20 @@ canvas { display:block; }
 <canvas id="c"></canvas>
 
 <script>
-let c = document.getElementById("c");
-let ctx = c.getContext("2d");
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
 
 c.width = innerWidth;
 c.height = innerHeight;
 
+// HARD BLOCK gestures (this fixes zoom 100%)
+["gesturestart","gesturechange","gestureend","dblclick"].forEach(e=>{
+  document.addEventListener(e, ev => ev.preventDefault());
+});
+
 let playing = true;
 let score = 0;
 let highScore = localStorage.getItem("hs") || 0;
-
 let startTime = Date.now();
 
 // player
@@ -48,9 +52,9 @@ let p = { x:120, y:c.height/2, vy:0 };
 
 // pipes
 let pipes = [];
-let spawn = 0;
+let lastSpawn = 0;
 
-// input (FIXED)
+// INPUT (clean + consistent)
 function flap(e){
  e.preventDefault();
 
@@ -59,67 +63,65 @@ function flap(e){
    return;
  }
 
- // reset upward velocity cleanly
- p.vy = -6.5;
+ // reset velocity (no stacking = consistent feel)
+ p.vy = -6.2;
 }
 document.addEventListener("touchstart", flap, {passive:false});
 document.addEventListener("mousedown", flap);
 
-// loop
+// LOOP
 function loop(){
 
- let time = (Date.now() - startTime)/1000;
+ let now = Date.now();
+ let time = (now - startTime)/1000;
  let level = Math.floor(time / 30);
 
- // MUCH smoother difficulty
- let speed = 2.2 + level * 0.25;
- let gap = 200 - level * 8;
+ // smooth difficulty
+ let speed = 2.0 + level * 0.25;
+ let gap = 210 - level * 8;
+ if(gap < 150) gap = 150;
 
- if(gap < 140) gap = 140;
-
- // SKY (better)
+ // SKY (cleaner)
  let sky = ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0,"#6ec6ff");
+ sky.addColorStop(0,"#5cc6ff");
  sky.addColorStop(1,"#eaf7ff");
  ctx.fillStyle = sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // spawn pipes (FIXED spacing)
- spawn--;
- if(spawn <= 0){
-   let top = Math.random() * (c.height - 300);
+ // SPAWN (time-based = FIXES spacing issue)
+ if(now - lastSpawn > 1800 - level*80){
+   let top = Math.random()*(c.height-300);
 
    pipes.push({
-     x: c.width,
-     top: top,
-     bottom: top + gap,
+     x:c.width,
+     top,
+     bottom:top+gap,
      scored:false
    });
 
-   // consistent spacing (this was your biggest issue)
-   spawn = 140 - level * 5;
-   if(spawn < 90) spawn = 90;
+   lastSpawn = now;
  }
 
- // draw pipes (ROUNDED + nicer)
+ // DRAW pipes (better look)
  pipes.forEach(pipe=>{
    pipe.x -= speed;
 
-   ctx.fillStyle="#ff5a76";
+   let grad = ctx.createLinearGradient(pipe.x,0,pipe.x+60,0);
+   grad.addColorStop(0,"#ff7a8c");
+   grad.addColorStop(1,"#ff3b5c");
+
+   ctx.fillStyle = grad;
 
    // top
-   ctx.beginPath();
-   ctx.roundRect(pipe.x, 0, 60, pipe.top, 10);
-   ctx.fill();
+   ctx.fillRect(pipe.x,0,60,pipe.top);
 
    // bottom
-   ctx.beginPath();
-   ctx.roundRect(pipe.x, pipe.bottom, 60, c.height, 10);
-   ctx.fill();
+   ctx.fillRect(pipe.x,pipe.bottom,60,c.height);
 
-   // gap marker
-   ctx.font="22px sans-serif";
-   ctx.fillText("💖", pipe.x+14, pipe.top+90);
+   // soft shadow
+   ctx.fillStyle="rgba(0,0,0,0.15)";
+   ctx.fillRect(pipe.x+60,0,5,pipe.top);
+   ctx.fillRect(pipe.x+60,pipe.bottom,5,c.height);
 
    // score
    if(!pipe.scored && pipe.x < p.x){
@@ -136,10 +138,10 @@ function loop(){
    }
  });
 
- pipes = pipes.filter(p=>p.x > -60);
+ pipes = pipes.filter(p=>p.x>-70);
 
- // physics (balanced)
- p.vy += 0.45;
+ // PHYSICS (balanced)
+ p.vy += 0.42;
  if(p.vy > 7) p.vy = 7;
 
  p.y += p.vy;
@@ -147,14 +149,14 @@ function loop(){
  if(p.y < 0) p.y = 0;
  if(p.y > c.height) playing = false;
 
- // player
- ctx.shadowBlur = 12;
+ // PLAYER
+ ctx.shadowBlur = 10;
  ctx.shadowColor = "red";
  ctx.font="40px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
  ctx.shadowBlur = 0;
 
- // save high score
+ // SAVE high score
  if(!playing && score > highScore){
    highScore = score;
    localStorage.setItem("hs", highScore);
@@ -163,8 +165,8 @@ function loop(){
  // UI
  document.getElementById("ui").innerText =
    playing
-   ? "Score: "+score+" | High: "+highScore+" | Level: "+(level+1)
-   : "Game Over — "+score+" (tap)";
+   ? `Score: ${score} | High: ${highScore} | Level: ${level+1}`
+   : `Game Over — ${score} (tap)`;
 
  requestAnimationFrame(loop);
 }
