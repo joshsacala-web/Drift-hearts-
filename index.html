@@ -1,23 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{margin:0;overflow:hidden;background:black;touch-action:none;}
+body{margin:0;overflow:hidden;background:black;}
 canvas{display:block;}
-#ui{
- position:fixed;top:10px;width:100%;
- text-align:center;color:white;
- font-family:sans-serif;text-shadow:0 0 6px black;
+#start{
+ position:fixed;inset:0;
+ display:flex;align-items:center;justify-content:center;
+ background:black;color:white;font-size:24px;
+ font-family:sans-serif;
 }
 </style>
 </head>
 <body>
 
-<div id="ui">Drag to Move</div>
+<div id="start">Tap to Start</div>
 <canvas id="c"></canvas>
 
-<audio id="ocean" loop src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3"></audio>
+<audio id="ocean" loop preload="auto" playsinline>
+<source src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3">
+</audio>
 
 <script>
 const c=document.getElementById("c");
@@ -25,139 +28,122 @@ const ctx=c.getContext("2d");
 c.width=innerWidth;
 c.height=innerHeight;
 
-let time=0;
-let playing=false, gameOver=false, score=0, combo=0;
-let speed=2;
+// GAME STATE
+let started=false, gameOver=false;
+let score=0, speed=2, time=0;
 
-// player
-let p={x:150,y:c.height/2,vx:0,vy:0};
+// PLAYER
+let p={x:150,y:c.height/2,vx:0,vy:0,angle:0};
 
-// joystick
-let joy={active:false,startX:0,startY:0,x:0,y:0};
+// JOYSTICK
+let joy={x:0,y:0,active:false,baseX:c.width/2,baseY:c.height*0.85};
 
-// entities
-let birds=[],hearts=[],particles=[];
+// ENTITIES
+let birds=[], hearts=[], particles=[];
+
+// AUDIO
+function startGame(){
+ if(started) return;
+
+ let audio=document.getElementById("ocean");
+
+ audio.play().then(()=>{
+   audio.volume=0.5;
+   started=true;
+   document.getElementById("start").style.display="none";
+ }).catch(()=>{
+   document.getElementById("start").innerText="Tap again";
+ });
+}
 
 // INPUT
-function start(e){
- e.preventDefault();
- let t=e.touches?e.touches[0]:e;
+document.addEventListener("touchstart",e=>{
+ startGame();
  joy.active=true;
- joy.startX=t.clientX;
- joy.startY=t.clientY;
+},{passive:false});
 
- if(!playing){
-   playing=true;
-   let ocean=document.getElementById("ocean");
-   ocean.volume=0.5;
-   ocean.play().catch(()=>{});
- }
-}
-function move(e){
+document.addEventListener("touchmove",e=>{
  if(!joy.active)return;
- let t=e.touches?e.touches[0]:e;
- joy.x=t.clientX-joy.startX;
- joy.y=t.clientY-joy.startY;
- p.vx=joy.x*0.04;
- p.vy=joy.y*0.04;
-}
-function end(){
- joy.active=false;
- p.vx*=0.6;
- p.vy*=0.6;
-}
-document.addEventListener("touchstart",start,{passive:false});
-document.addEventListener("touchmove",move,{passive:false});
-document.addEventListener("touchend",end);
-document.addEventListener("mousedown",start);
-document.addEventListener("mousemove",move);
-document.addEventListener("mouseup",end);
+ let t=e.touches[0];
 
-// DRAW BEACH
-function drawBeach(){
+ joy.x=t.clientX-joy.baseX;
+ joy.y=t.clientY-joy.baseY;
+
+ let max=40;
+ joy.x=Math.max(-max,Math.min(max,joy.x));
+ joy.y=Math.max(-max,Math.min(max,joy.y));
+
+ p.vx=joy.x*0.05;
+ p.vy=joy.y*0.05;
+},{passive:false});
+
+document.addEventListener("touchend",()=>{
+ joy.active=false;
+ joy.x=0; joy.y=0;
+});
+
+// DRAW SCENE
+function drawScene(){
 
  time+=0.01;
 
- // sky
+ // SKY
  let sky=ctx.createLinearGradient(0,0,0,c.height);
- sky.addColorStop(0,"#ffb347");
- sky.addColorStop(0.4,"#ffcc88");
- sky.addColorStop(1,"#ffe6b3");
+ sky.addColorStop(0,"#4fc3f7");
+ sky.addColorStop(1,"#ffe0b2");
  ctx.fillStyle=sky;
  ctx.fillRect(0,0,c.width,c.height);
 
- // sun
- let sunY=c.height*0.25;
- let sun=ctx.createRadialGradient(c.width*0.7,sunY,10,c.width*0.7,sunY,120);
- sun.addColorStop(0,"rgba(255,255,200,1)");
- sun.addColorStop(1,"rgba(255,255,200,0)");
- ctx.fillStyle=sun;
+ // SUN
  ctx.beginPath();
- ctx.arc(c.width*0.7,sunY,120,0,Math.PI*2);
+ ctx.arc(c.width*0.75,c.height*0.25,60,0,Math.PI*2);
+ ctx.fillStyle="rgba(255,255,200,0.9)";
  ctx.fill();
 
- // clouds
- ctx.fillStyle="rgba(255,255,255,0.5)";
- for(let i=0;i<5;i++){
-   let x=(i*300 + time*10)%c.width;
-   ctx.beginPath();
-   ctx.arc(x,100,30,0,Math.PI*2);
-   ctx.arc(x+40,100,25,0,Math.PI*2);
-   ctx.fill();
- }
-
- // ocean
+ // OCEAN BASE
  ctx.fillStyle="#2ec4f0";
  ctx.fillRect(0,c.height*0.55,c.width,c.height*0.25);
 
- // waves
+ // WAVES (animated)
+ ctx.strokeStyle="rgba(255,255,255,0.6)";
  for(let layer=0;layer<3;layer++){
    ctx.beginPath();
-   for(let x=0;x<c.width;x+=8){
+   for(let x=0;x<c.width;x+=10){
      let y=c.height*0.55 +
-       Math.sin(x*0.015 + time*(2+layer))* (6+layer*3);
+       Math.sin(x*0.02 + time*(2+layer))*(5+layer*3);
      ctx.lineTo(x,y);
    }
-   ctx.strokeStyle=`rgba(255,255,255,${0.4-layer*0.1})`;
    ctx.stroke();
  }
 
- // reflection
- ctx.strokeStyle="rgba(255,255,200,0.3)";
- ctx.beginPath();
- for(let y=c.height*0.55;y<c.height*0.8;y+=4){
-   let w=50*Math.sin(y*0.05+time*2);
-   ctx.moveTo(c.width*0.7-w,y);
-   ctx.lineTo(c.width*0.7+w,y);
- }
- ctx.stroke();
-
- // sand
+ // SAND
  ctx.fillStyle="#f4d9a5";
- ctx.fillRect(0,c.height*0.75,c.width,c.height);
-
- // sand texture
- for(let i=0;i<120;i++){
-   let x=Math.random()*c.width;
-   let y=c.height*0.75 + Math.random()*100;
-   ctx.fillStyle="rgba(0,0,0,0.05)";
-   ctx.fillRect(x,y,1,1);
- }
+ ctx.fillRect(0,c.height*0.8,c.width,c.height);
 }
 
 // LOOP
 function loop(){
 
- drawBeach();
+ drawScene();
 
- if(playing && !gameOver){
+ if(started && !gameOver){
+
+   // player movement
+   p.x+=p.vx;
+   p.y+=p.vy;
+
+   p.x=Math.max(0,Math.min(c.width,p.x));
+   p.y=Math.max(0,Math.min(c.height,p.y));
+
+   // tilt effect
+   p.angle = p.vy * 0.1;
 
    // spawn birds
    if(Math.random()<0.02){
      birds.push({
        x:c.width,
        y:Math.random()*c.height*0.6,
-       vy:(p.y-Math.random()*c.height)*0.002
+       vy:(Math.random()-0.5)*1.5
      });
    }
 
@@ -166,39 +152,36 @@ function loop(){
      hearts.push({x:c.width,y:Math.random()*c.height*0.6});
    }
 
-   // move player
-   p.x+=p.vx;
-   p.y+=p.vy;
-
-   p.x=Math.max(0,Math.min(c.width,p.x));
-   p.y=Math.max(0,Math.min(c.height,p.y));
-
-   // birds
+   // BIRDS
    birds.forEach(b=>{
      b.x-=speed;
      b.y+=b.vy;
 
-     ctx.font="30px sans-serif";
-     ctx.fillText("🐦",b.x,b.y);
+     // simple sprite look (not emoji spam)
+     ctx.fillStyle="black";
+     ctx.fillRect(b.x,b.y,20,10);
+     ctx.fillRect(b.x+5,b.y-5,10,5);
 
-     if(Math.abs(p.x-b.x)<30 && Math.abs(p.y-b.y)<30){
+     if(Math.abs(p.x-b.x)<25 && Math.abs(p.y-b.y)<25){
        gameOver=true;
      }
    });
 
-   // hearts
+   // HEARTS
    hearts.forEach(h=>{
      h.x-=speed;
 
-     ctx.font="24px sans-serif";
-     ctx.fillText("💖",h.x,h.y);
+     ctx.fillStyle="red";
+     ctx.beginPath();
+     ctx.arc(h.x,h.y,6,0,Math.PI*2);
+     ctx.fill();
 
-     if(Math.abs(p.x-h.x)<30 && Math.abs(p.y-h.y)<30){
-       score+=10+combo;
-       combo++;
-       h.collected=true;
+     if(Math.abs(p.x-h.x)<20 && Math.abs(p.y-h.y)<20){
+       score+=10;
+       h.hit=true;
 
-       for(let i=0;i<6;i++){
+       // particles
+       for(let i=0;i<5;i++){
          particles.push({
            x:h.x,y:h.y,
            vx:Math.random()*4-2,
@@ -209,48 +192,46 @@ function loop(){
      }
    });
 
-   // particles
+   // PARTICLES
    particles.forEach(pt=>{
      pt.x+=pt.vx;
      pt.y+=pt.vy;
      pt.life--;
      ctx.fillStyle="pink";
-     ctx.fillRect(pt.x,pt.y,3,3);
+     ctx.fillRect(pt.x,pt.y,2,2);
    });
 
    birds=birds.filter(b=>b.x>-50);
-   hearts=hearts.filter(h=>!h.collected && h.x>-50);
-   particles=particles.filter(pt=>pt.life>0);
+   hearts=hearts.filter(h=>!h.hit && h.x>-50);
+   particles=particles.filter(p=>p.life>0);
 
-   // difficulty
    speed+=0.0003;
    score++;
  }
 
- // player
- ctx.font="42px sans-serif";
- ctx.fillText("❤️",p.x,p.y);
+ // PLAYER (with rotation)
+ ctx.save();
+ ctx.translate(p.x,p.y);
+ ctx.rotate(p.angle);
+ ctx.font="36px sans-serif";
+ ctx.fillText("❤️",-18,10);
+ ctx.restore();
 
- // joystick UI
- if(joy.active){
-   ctx.beginPath();
-   ctx.arc(joy.startX,joy.startY,40,0,Math.PI*2);
-   ctx.strokeStyle="white";
-   ctx.stroke();
+ // JOYSTICK
+ ctx.beginPath();
+ ctx.arc(joy.baseX,joy.baseY,40,0,Math.PI*2);
+ ctx.strokeStyle="white";
+ ctx.stroke();
 
-   ctx.beginPath();
-   ctx.arc(joy.startX+joy.x,joy.startY+joy.y,20,0,Math.PI*2);
-   ctx.fillStyle="white";
-   ctx.fill();
- }
+ ctx.beginPath();
+ ctx.arc(joy.baseX+joy.x,joy.baseY+joy.y,20,0,Math.PI*2);
+ ctx.fillStyle="white";
+ ctx.fill();
 
  // UI
- if(!playing){
-   ui.innerText="Drag to Move";
- } else if(gameOver){
-   ui.innerText="Game Over — "+score;
- } else{
-   ui.innerText="Score: "+score+" | Combo: "+combo;
+ if(gameOver){
+   ctx.fillStyle="white";
+   ctx.fillText("Game Over - "+score,20,40);
  }
 
  requestAnimationFrame(loop);
