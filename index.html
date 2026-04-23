@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
-body {
+body{
  margin:0;
  overflow:hidden;
- background:linear-gradient(#6ec6ff, #eaf7ff);
+ touch-action:none;
 }
-canvas { display:block; }
+canvas{display:block;}
 #ui{
  position:fixed;
  top:10px;
@@ -16,7 +16,7 @@ canvas { display:block; }
  text-align:center;
  color:white;
  font-family:sans-serif;
- text-shadow:0 0 5px black;
+ text-shadow:0 0 6px black;
 }
 </style>
 </head>
@@ -25,6 +25,8 @@ canvas { display:block; }
 <div id="ui">Tap to Start</div>
 <canvas id="c"></canvas>
 
+<audio id="ocean" loop src="https://cdn.pixabay.com/audio/2022/03/10/audio_115b9b1f6c.mp3"></audio>
+
 <script>
 const c = document.getElementById("c");
 const ctx = c.getContext("2d");
@@ -32,107 +34,129 @@ const ctx = c.getContext("2d");
 c.width = innerWidth;
 c.height = innerHeight;
 
-let gameStarted = false;
-let playing = true;
+let playing = false;
+let gameOver = false;
 let score = 0;
+let time = 0;
+let slowMo = 1;
 
 // player
-let p = {
- x: 100,
- y: c.height/2,
- vy: 0
-};
+let p = { x:120, y:c.height/2, vy:0 };
 
-// pipes
-let pipes = [];
+// birds
+let birds = [];
 let spawnTimer = 0;
 
-// INPUT
+// input
 function flap(){
- if(!gameStarted){
-   gameStarted = true;
-   return;
- }
  if(!playing){
-   location.reload();
+   playing = true;
+   document.getElementById("ocean").volume = 0.4;
+   document.getElementById("ocean").play();
    return;
  }
- p.vy = -7;
+
+ if(gameOver) location.reload();
+
+ p.vy = -6;
 }
-
+document.addEventListener("touchstart", flap, {passive:false});
 document.addEventListener("mousedown", flap);
-document.addEventListener("touchstart", flap);
 
-// LOOP
+// loop
 function loop(){
 
- ctx.clearRect(0,0,c.width,c.height);
+ time += 0.002;
 
- // spawn pipes (simple + stable)
- if(gameStarted){
+ // 🌅 sky transition
+ let sky = ctx.createLinearGradient(0,0,0,c.height);
+ sky.addColorStop(0, `hsl(${200 - time*50},80%,70%)`);
+ sky.addColorStop(1, `hsl(${40 - time*20},80%,85%)`);
+ ctx.fillStyle = sky;
+ ctx.fillRect(0,0,c.width,c.height);
+
+ // 🌊 animated waves
+ ctx.strokeStyle = "rgba(255,255,255,0.6)";
+ for(let i=0;i<3;i++){
+   ctx.beginPath();
+   for(let x=0;x<c.width;x+=10){
+     let y = c.height*0.65 + Math.sin(x*0.02 + time*3 + i)*10;
+     ctx.lineTo(x,y);
+   }
+   ctx.stroke();
+ }
+
+ // spawn birds
+ if(playing && !gameOver){
    spawnTimer--;
    if(spawnTimer <= 0){
-     let gap = 180;
-     let top = Math.random()*(c.height-300);
-
-     pipes.push({
-       x: c.width,
-       top,
-       bottom: top + gap,
-       passed:false
+     birds.push({
+       x:c.width,
+       y:Math.random()*c.height*0.5+50,
+       phase:Math.random()*10
      });
-
-     spawnTimer = 120; // consistent spacing
+     spawnTimer = 100;
    }
  }
 
- // draw pipes
- pipes.forEach(pipe=>{
-   pipe.x -= 3;
+ // birds movement (🐦 swoop)
+ birds.forEach(b=>{
+   b.x -= 3 * slowMo;
+   b.phase += 0.05;
 
-   ctx.fillStyle = "#ff4d6d";
+   // swoop motion
+   b.y += Math.sin(b.phase) * 1.5;
 
-   ctx.fillRect(pipe.x, 0, 60, pipe.top);
-   ctx.fillRect(pipe.x, pipe.bottom, 60, c.height);
-
-   // score
-   if(!pipe.passed && pipe.x < p.x){
-     score++;
-     pipe.passed = true;
-   }
+   ctx.font="30px sans-serif";
+   ctx.fillText("🐦", b.x, b.y);
 
    // collision
    if(
-     p.x > pipe.x && p.x < pipe.x+60 &&
-     (p.y < pipe.top || p.y > pipe.bottom)
+     p.x < b.x+30 &&
+     p.x+30 > b.x &&
+     p.y < b.y+30 &&
+     p.y+30 > b.y
    ){
-     playing = false;
+     gameOver = true;
+   }
+
+   // ✨ near miss
+   let dist = Math.abs(p.x - b.x) + Math.abs(p.y - b.y);
+   if(dist < 70 && dist > 40){
+     slowMo = 0.5;
+     score += 2; // bonus
    }
  });
 
- pipes = pipes.filter(p=>p.x > -60);
+ birds = birds.filter(b=>b.x > -50);
 
  // physics
- if(gameStarted){
-   p.vy += 0.5;
-   if(p.vy > 8) p.vy = 8;
+ if(playing && !gameOver){
+   p.vy += 0.45;
    p.y += p.vy;
+   score++;
+
+   if(p.y < 0) p.y = 0;
+   if(p.y > c.height) gameOver = true;
  }
 
- if(p.y < 0) p.y = 0;
- if(p.y > c.height) playing = false;
+ // reset slowmo gradually
+ slowMo += (1 - slowMo) * 0.05;
 
  // player
- ctx.font = "40px sans-serif";
+ ctx.shadowBlur = 10;
+ ctx.shadowColor = "red";
+ ctx.font="40px sans-serif";
  ctx.fillText("❤️", p.x, p.y);
+ ctx.shadowBlur = 0;
 
  // UI
- if(!gameStarted){
+ if(!playing){
    document.getElementById("ui").innerText = "Tap to Start";
- } else if(playing){
-   document.getElementById("ui").innerText = "Score: " + score;
- } else {
+ } else if(gameOver){
    document.getElementById("ui").innerText = "Game Over — " + score + " (tap)";
+ } else {
+   document.getElementById("ui").innerText = "Score: " + score;
  }
 
  requestAnimationFrame(loop);
