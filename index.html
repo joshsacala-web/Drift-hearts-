@@ -1,199 +1,297 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html><html>
 <head>
-<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Saxson 2 HD</title><style>
+<title>Saxson 2</title><!-- PWA META --><meta name="theme-color" content="#000000">
+<link rel="manifest" href="data:application/json,{
+  &quot;name&quot;:&quot;Saxson 2&quot;,
+  &quot;short_name&quot;:&quot;Saxson2&quot;,
+  &quot;display&quot;:&quot;standalone&quot;,
+  &quot;background_color&quot;:&quot;#000000&quot;,
+  &quot;theme_color&quot;:&quot;#000000&quot;,
+  &quot;start_url&quot;:&quot;.&quot;
+}"><style>
 body{
- margin:0;
- background:#0a0a0f;
- font-family:sans-serif;
- color:#fff;
- overflow:hidden;
+  margin:0;
+  background:radial-gradient(circle,#111,#000);
+  color:white;
+  font-family:Arial;
+  text-align:center;
+  overflow:hidden;
 }
 
-#game{
- width:100vw;
- height:100vh;
- display:flex;
- flex-direction:column;
- align-items:center;
- justify-content:center;
+h2{
+  color:gold;
+  text-shadow:0 0 15px gold;
 }
 
 #reels{
- display:flex;
- gap:10px;
- background:#111;
- padding:15px;
- border:4px solid gold;
- border-radius:12px;
- box-shadow:0 0 40px rgba(255,215,0,0.4);
- overflow:hidden;
+  display:flex;
+  gap:6px;
+  padding:10px;
+  justify-content:center;
 }
 
 .reel{
- width:90px;
- height:270px;
- overflow:hidden;
- position:relative;
- background:#000;
- border-radius:6px;
+  width:18%;
+  height:240px;
+  overflow:hidden;
+  border:2px solid gold;
+  border-radius:12px;
+  background:#000;
+  position:relative;
 }
 
 .strip{
- position:absolute;
- width:100%;
+  position:absolute;
+  width:100%;
 }
 
 .symbol{
- width:90px;
- height:90px;
- display:flex;
- align-items:center;
- justify-content:center;
-}
-
-.symbol img{
- width:80px;
- height:80px;
- object-fit:contain;
-}
-
-.blur{
- filter:blur(3px);
+  height:80px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:30px;
 }
 
 #ui{
- position:fixed;
- bottom:0;
- width:100%;
- display:flex;
- justify-content:space-between;
- padding:12px;
- background:#000;
- border-top:2px solid gold;
+  display:flex;
+  justify-content:space-between;
+  padding:10px;
 }
 
 button{
- background:gold;
- border:none;
- padding:12px 20px;
- font-size:18px;
- font-weight:bold;
+  background:gold;
+  border:none;
+  padding:10px 20px;
+  border-radius:8px;
 }
-</style></head><body><div id="game"><div id="reels"></div><div id="ui">
-<div>💰 $<span id="bal">100.00</span></div>
-<div>🎁 <span id="fs">0</span></div>
-<div>✖️ x<span id="mult">1</span></div>
+
+.winflash{
+  animation:flash 0.6s 3;
+}
+
+@keyframes flash{
+  0%{box-shadow:0 0 5px gold;}
+  50%{box-shadow:0 0 25px gold;}
+  100%{box-shadow:0 0 5px gold;}
+}
+
+/* BONUS OVERLAY */
+#bonusOverlay{
+ position:fixed;
+ top:0;left:0;
+ width:100%;height:100%;
+ background:radial-gradient(circle,rgba(255,200,0,0.9),rgba(0,0,0,0.95));
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ opacity:0;
+ transition:0.4s;
+ z-index:999;
+}
+
+#bonusText{
+ font-size:50px;
+ text-shadow:0 0 30px gold;
+ animation:pulse 0.6s infinite;
+}
+
+@keyframes pulse{
+ 50%{transform:scale(1.2);}
+}
+
+.shake{
+ animation:shake 0.4s;
+}
+
+@keyframes shake{
+ 25%{transform:translate(5px,-5px);}
+ 50%{transform:translate(-5px,5px);}
+ 75%{transform:translate(5px,5px);}
+}
+</style></head><body><h2>🎸 SAXSON 2 🎸</h2><div id="reels"></div><div id="ui">
+<div>$<span id="money">100.00</span></div>
+<div>🎁 <span id="spins">0</span></div>
+<div>x<span id="multi">1</span></div>
 <button onclick="spin()">SPIN</button>
-</div></div><script>
+</div><div id="bonusOverlay">
+  <div id="bonusText">🔥 BONUS 🔥</div>
+</div><script>
 
-// HD SYMBOL IMAGES
-const symbols = {
- A:"https://i.imgur.com/8Qf6R8R.png",
- K:"https://i.imgur.com/Y3X9Q9k.png",
- Q:"https://i.imgur.com/3ZQ3Z3C.png",
- J:"https://i.imgur.com/qK42fUu.png",
- W:"https://i.imgur.com/5bZ6F9D.png", // skull wild
- S1:"https://i.imgur.com/eVQZ8ZP.png", // singer
- S2:"https://i.imgur.com/L1mY3bY.png"  // motorcycle
-};
+// INLINE SERVICE WORKER (ONE FILE MAGIC)
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    self.addEventListener('install', e => self.skipWaiting());
+    self.addEventListener('fetch', e => {});
+  `;
+  const blob = new Blob([swCode], {type: 'text/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(blob));
+}
 
-const reelData = [
- ["A","K","Q","J","W","A","K"],
- ["K","Q","S1","J","A","K"],
- ["Q","A","K","J","W"],
- ["A","K","S2","J","Q"],
- ["K","Q","A","J","W"]
-];
+// AUDIO (simple synth)
+function sound(freq){
+  let ctx=new (window.AudioContext||window.webkitAudioContext)();
+  let o=ctx.createOscillator();
+  o.frequency.value=freq;
+  o.connect(ctx.destination);
+  o.start();
+  o.stop(ctx.currentTime+0.1);
+}
 
-let balance=100, bet=0.5;
-let fs=0, mult=1, inBonus=false;
+// SYMBOLS
+const symbols=["🎸","💀","🔥","🦅","🎤","🏍️","W"];
 
-const reelsDiv=document.getElementById("reels");
+let money=100, free=0, multi=1;
+let sticky=[[],[],[],[],[]];
 
-// CREATE REELS
-function createReels(){
- reelsDiv.innerHTML="";
- reelData.forEach((r,i)=>{
-  const reel=document.createElement("div");
+const reelsEl=document.getElementById("reels");
+
+// BUILD REELS
+function build(){
+ reelsEl.innerHTML="";
+ for(let i=0;i<5;i++){
+  let reel=document.createElement("div");
   reel.className="reel";
 
-  const strip=document.createElement("div");
+  let strip=document.createElement("div");
   strip.className="strip";
 
-  for(let j=0;j<20;j++){
-   let sym=r[Math.floor(Math.random()*r.length)];
-   let div=document.createElement("div");
-   div.className="symbol";
-   div.innerHTML=`<img src="${symbols[sym]}">`;
-   strip.appendChild(div);
+  for(let j=0;j<25;j++){
+   let d=document.createElement("div");
+   d.className="symbol";
+   d.innerText=random();
+   strip.appendChild(d);
   }
 
   reel.appendChild(strip);
-  reelsDiv.appendChild(reel);
- });
+  reelsEl.appendChild(reel);
+ }
 }
+build();
 
-createReels();
+function random(){
+ return symbols[Math.floor(Math.random()*symbols.length)];
+}
 
 // SPIN
 function spin(){
- if(fs<=0 && balance<bet) return;
 
- if(fs>0) fs--;
- else balance-=bet;
+ if(money<0.5 && free<=0) return;
 
- document.querySelectorAll(".strip").forEach((strip,i)=>{
-   strip.classList.add("blur");
+ if(free>0) free--; else money-=0.5;
 
-   let stop=500 + i*200;
+ let strips=document.querySelectorAll(".strip");
+ let result=[[],[],[],[],[]];
 
-   strip.style.transition=`transform ${1+i*0.2}s cubic-bezier(.2,.8,.2,1)`;
+ strips.forEach((s,i)=>{
 
-   let offset=-(Math.floor(Math.random()*15)+5)*90;
+  let dist=(Math.random()*10+15)*80;
 
-   setTimeout(()=>{
-     strip.style.transform=`translateY(${offset}px)`;
-   },50);
+  s.style.transition="top 0.8s ease-out";
+  s.style.top=-dist+"px";
 
-   setTimeout(()=>{
-     strip.classList.remove("blur");
-     if(i===4) endSpin();
-   },stop);
+  setTimeout(()=>{
+
+    sound(200+i*50);
+
+    s.style.transition="none";
+    s.style.top="0";
+    s.innerHTML="";
+
+    for(let j=0;j<25;j++){
+
+      let sym=(free>0 && sticky[i][j])?"W":random();
+
+      let d=document.createElement("div");
+      d.className="symbol";
+      d.innerText=sym;
+      s.appendChild(d);
+
+      if(j<3){
+        result[i][j]=sym;
+        if(free>0 && sym==="W") sticky[i][j]=true;
+      }
+    }
+
+    if(i===4){
+      setTimeout(()=>check(result),100);
+    }
+
+  },800+i*120);
+
+ });
+
+ update();
+}
+
+// CHECK WIN
+function check(r){
+
+ let win=0;
+
+ for(let row=0;row<3;row++){
+  let base=r[0][row];
+  let count=1;
+
+  for(let col=1;col<5;col++){
+   if(r[col][row]===base || r[col][row]==="W") count++;
+   else break;
+  }
+
+  if(count>=3) win+=count*2;
+ }
+
+ // BONUS
+ if(r[1][1]==="🎤" && r[3][1]==="🏍️"){
+  startBonus();
+ }
+
+ if(win>0){
+  if(free>0) multi++;
+  money+=win*multi;
+
+  document.body.classList.add("shake");
+  setTimeout(()=>document.body.classList.remove("shake"),400);
+
+  flash();
+  sound(400);
+ }
+
+ update();
+}
+
+// BONUS
+function startBonus(){
+
+ free=Math.floor(Math.random()*26)+5;
+ multi=1;
+ sticky=[[],[],[],[],[]];
+
+ let o=document.getElementById("bonusOverlay");
+ o.style.opacity="1";
+
+ sound(100);
+
+ document.body.classList.add("shake");
+ setTimeout(()=>document.body.classList.remove("shake"),400);
+
+ setTimeout(()=>o.style.opacity="0",1500);
+}
+
+// FLASH
+function flash(){
+ document.querySelectorAll(".reel").forEach(r=>{
+  r.classList.add("winflash");
+  setTimeout(()=>r.classList.remove("winflash"),800);
  });
 }
 
-// END SPIN
-function endSpin(){
-
- // SIMPLE BONUS TRIGGER
- let trigger=Math.random();
-
- if(!inBonus && trigger<0.15){
-   inBonus=true;
-   fs=10+Math.floor(Math.random()*10);
-   mult=1;
- }
-
- if(inBonus){
-   mult++;
-   if(fs<=0){
-     inBonus=false;
-     mult=1;
-   }
- }
-
- balance += Math.random()*2;
-
- updateUI();
-}
-
 // UI
-function updateUI(){
- bal.innerText=balance.toFixed(2);
- fs.innerText=fs;
- mult.innerText=mult;
+function update(){
+ money.innerText=money.toFixed(2);
+ spins.innerText=free;
+ multi.innerText=multi;
 }
 
 </script></body>
