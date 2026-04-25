@@ -3,17 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Saxson 2</title>
+<title>Saxson 2 Ultra</title>
 
 <style>
-body{margin:0;background:#000;font-family:sans-serif;color:#fff;overflow:hidden}
+body{margin:0;background:#07070a;font-family:sans-serif;color:#fff;overflow:hidden}
 canvas{display:block}
+
 #ui{
  position:fixed;bottom:0;width:100%;
  display:flex;justify-content:space-between;
- padding:10px;background:rgba(0,0,0,0.7)
+ padding:12px;
+ background:linear-gradient(#000,#111);
+ border-top:2px solid #caa64a;
 }
-button{padding:10px 20px;font-size:16px}
+
+button{
+ background:linear-gradient(#ffd700,#caa64a);
+ color:#000;
+ font-weight:bold;
+ border:none;
+ padding:12px 24px;
+ font-size:18px;
+ border-radius:6px;
+ box-shadow:0 0 10px rgba(255,215,0,0.5);
+}
 </style>
 </head>
 
@@ -23,7 +36,7 @@ button{padding:10px 20px;font-size:16px}
 
 <div id="ui">
 <div>💰 $<span id="bal">100.00</span></div>
-<div>🎁 Spins: <span id="fs">0</span></div>
+<div>🎁 <span id="fs">0</span></div>
 <div>✖️ x<span id="mult">1</span></div>
 <button onclick="spin()">SPIN</button>
 </div>
@@ -34,44 +47,49 @@ const ctx=canvas.getContext("2d");
 canvas.width=innerWidth;
 canvas.height=innerHeight;
 
-// SYMBOLS
-const SYM={A:"A",K:"K",Q:"Q",J:"J",W:"W",S1:"🎤",S2:"🏍️"};
+// SYMBOL SET (styled)
+const symbols=["A","K","Q","J","W","S1","S2"];
+
+function color(sym){
+ return {
+  A:"#6cf",
+  K:"#fc6",
+  Q:"#c6f",
+  J:"#6f6",
+  W:"#ff0",
+  S1:"#f55",
+  S2:"#5ff"
+ }[sym];
+}
 
 // REELS
-const REELS=[
- ["A","K","Q","J","A","K","W","Q","J","A"],
- ["K","Q","A","J","S1","K","Q","W","A","J"],
- ["Q","A","K","J","W","Q","A","K","J","A"],
- ["A","K","Q","S2","J","W","A","K","Q","J"],
- ["K","Q","A","J","W","K","Q","A","J"]
+const reels=[
+ ["A","K","Q","J","A","K","W","Q","J"],
+ ["K","Q","A","J","S1","K","Q","W"],
+ ["Q","A","K","J","W","Q","A"],
+ ["A","K","Q","S2","J","W","A"],
+ ["K","Q","A","J","W","K"]
 ];
 
 // STATE
-let balance=100;
-let bet=0.5;
 let grid=[];
 let spinning=false;
-let reelY=[0,0,0,0,0];
-let reelSpeed=[0,0,0,0,0];
+let speed=[0,0,0,0,0];
+let offset=[0,0,0,0,0];
 
-let inBonus=false;
-let freeSpins=0;
-let multiplier=1;
-let stickyWilds=[false,false,false,false,false];
+let balance=100,bet=0.5;
+let inBonus=false,fs=0,mult=1;
+let sticky=[false,false,false,false,false];
 
-// INIT GRID
-function randReel(i){
- let r=[];
- for(let j=0;j<3;j++){
-  r.push(REELS[i][Math.floor(Math.random()*REELS[i].length)]);
- }
- return r;
+// INIT
+function rand(i){
+ return Array.from({length:3},()=>reels[i][Math.floor(Math.random()*reels[i].length)]);
 }
-function newGrid(){
+function init(){
  grid=[];
- for(let i=0;i<5;i++) grid.push(randReel(i));
+ for(let i=0;i<5;i++) grid.push(rand(i));
 }
-newGrid();
+init();
 
 // SPIN
 function spin(){
@@ -80,72 +98,44 @@ function spin(){
  if(!inBonus){
   if(balance<bet) return;
   balance-=bet;
- }else{
-  freeSpins--;
- }
+ } else fs--;
 
  spinning=true;
 
  for(let i=0;i<5;i++){
-  reelSpeed[i]=30+i*4;
+  speed[i]=25+i*4;
  }
 
- // anticipation if singer lands early
- if(grid[1].includes("🎤")){
-  reelSpeed[3]=10; // slow reel 4
- }
-}
-
-// UPDATE
-function update(){
-
- if(spinning){
-
-  for(let i=0;i<5;i++){
-   reelY[i]+=reelSpeed[i];
-   reelSpeed[i]*=0.92;
-
-   if(reelSpeed[i]<0.5){
-    reelSpeed[i]=0;
-    if(!grid[i].locked){
-     grid[i]=randReel(i);
-     grid[i].locked=true;
-    }
-   }
-  }
-
-  if(reelSpeed.every(s=>s===0)){
-   spinning=false;
-   grid.forEach(r=>r.locked=false);
-   endSpin();
-  }
+ // anticipation
+ if(grid[1].includes("S1")){
+  speed[3]=8;
  }
 }
 
-// BONUS CHECK
+// END
 function endSpin(){
 
- let hasSinger=grid[1].includes("🎤");
- let hasBike=grid[3].includes("🏍️");
+ let s1=grid[1].includes("S1");
+ let s2=grid[3].includes("S2");
 
- if(!inBonus && hasSinger && hasBike){
-  triggerBonus();
-  return;
+ if(!inBonus && s1 && s2){
+  inBonus=true;
+  fs=getFS();
+  mult=1;
  }
 
- let win=checkWins();
+ let win=calcWin();
 
  if(inBonus){
   applySticky();
   if(win>0){
-   win*=multiplier;
-   multiplier++;
+   win*=mult;
+   mult++;
   }
-
-  if(freeSpins<=0){
+  if(fs<=0){
    inBonus=false;
-   multiplier=1;
-   stickyWilds=[false,false,false,false,false];
+   mult=1;
+   sticky=[false,false,false,false,false];
   }
  }
 
@@ -153,40 +143,7 @@ function endSpin(){
  updateUI();
 }
 
-// PAYLINES (simple 20)
-const lines=[
- [0,0,0,0,0],[1,1,1,1,1],[2,2,2,2,2],
- [0,1,2,1,0],[2,1,0,1,2]
-];
-
-function checkWins(){
- let total=0;
-
- lines.forEach(line=>{
-  let first=grid[0][line[0]];
-  let count=1;
-
-  for(let i=1;i<5;i++){
-   let sym=grid[i][line[i]];
-   if(sym===first || sym==="W") count++;
-   else break;
-  }
-
-  if(count>=3){
-   total+=count*2;
-  }
- });
-
- return total;
-}
-
-// BONUS
-function triggerBonus(){
- inBonus=true;
- freeSpins=getFS();
- multiplier=1;
-}
-
+// FS
 function getFS(){
  let r=Math.random();
  if(r<0.4) return 8;
@@ -197,14 +154,47 @@ function getFS(){
  return 30;
 }
 
-// STICKY WILDS
+// STICKY
 function applySticky(){
  for(let i=0;i<5;i++){
-  if(grid[i].includes("W")){
-   stickyWilds[i]=true;
+  if(grid[i].includes("W")) sticky[i]=true;
+  if(sticky[i]) grid[i]=["W","W","W"];
+ }
+}
+
+// WIN
+function calcWin(){
+ let w=0;
+ for(let r=0;r<3;r++){
+  let f=grid[0][r];
+  let c=1;
+  for(let i=1;i<5;i++){
+   let s=grid[i][r];
+   if(s===f || s==="W") c++;
+   else break;
   }
-  if(stickyWilds[i]){
-   grid[i]=["W","W","W"];
+  if(c>=3) w+=c*2;
+ }
+ return w;
+}
+
+// UPDATE
+function update(){
+
+ if(spinning){
+  for(let i=0;i<5;i++){
+   offset[i]+=speed[i];
+   speed[i]*=0.9;
+
+   if(speed[i]<0.5){
+    speed[i]=0;
+    grid[i]=rand(i);
+   }
+  }
+
+  if(speed.every(s=>s===0)){
+   spinning=false;
+   endSpin();
   }
  }
 }
@@ -212,32 +202,45 @@ function applySticky(){
 // DRAW
 function draw(){
 
- ctx.fillStyle="#000";
+ ctx.fillStyle="#050507";
  ctx.fillRect(0,0,canvas.width,canvas.height);
 
- let size=80;
+ // frame
+ ctx.strokeStyle="#caa64a";
+ ctx.lineWidth=6;
+ ctx.strokeRect(80,80,500,300);
 
  for(let i=0;i<5;i++){
   for(let j=0;j<3;j++){
 
-   let x=100+i*90;
-   let y=100+j*90 - (reelY[i]%90);
+   let x=100+i*100;
+   let y=100+j*100-(offset[i]%100);
 
-   ctx.fillStyle="#222";
-   ctx.fillRect(x,y,size,size);
+   let sym=grid[i][j];
 
-   ctx.fillStyle="#fff";
-   ctx.font="28px sans-serif";
-   ctx.fillText(grid[i][j],x+20,y+50);
+   // slot cell
+   ctx.fillStyle="#111";
+   ctx.fillRect(x,y,90,90);
+
+   // glow
+   ctx.shadowBlur=15;
+   ctx.shadowColor=color(sym);
+
+   // symbol
+   ctx.fillStyle=color(sym);
+   ctx.font="bold 28px sans-serif";
+   ctx.fillText(sym,x+25,y+55);
+
+   ctx.shadowBlur=0;
   }
  }
 }
 
 // UI
 function updateUI(){
- document.getElementById("bal").innerText=balance.toFixed(2);
- document.getElementById("fs").innerText=freeSpins;
- document.getElementById("mult").innerText=multiplier;
+ bal.innerText=balance.toFixed(2);
+ fs.innerText=fs;
+ mult.innerText=mult;
 }
 
 // LOOP
@@ -247,7 +250,6 @@ function loop(){
  requestAnimationFrame(loop);
 }
 loop();
-
 </script>
 
 </body>
