@@ -3,154 +3,236 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{margin:0;background:#0b3d2e;font-family:sans-serif;color:white;text-align:center}
-#table{position:relative;width:100%;height:100vh}
-
-.card{
- width:60px;height:90px;
- background:white;color:black;
- border-radius:8px;
- display:inline-flex;
- align-items:center;
- justify-content:center;
- font-weight:bold;
- margin:4px;
+body{
+ margin:0;
+ background:#0a0a0a;
+ color:white;
+ text-align:center;
+ font-family:sans-serif;
 }
 
-#community{position:absolute;top:40%;width:100%}
-#player{position:absolute;bottom:10%}
-#ai{position:absolute;top:10%}
+#slot{
+ margin-top:20px;
+}
 
-#controls{
- position:absolute;
- bottom:0;width:100%;
- display:flex;justify-content:center;gap:10px;
+.reel{
+ display:inline-grid;
+ grid-template-rows:repeat(3,80px);
+ gap:6px;
+ margin:4px;
+ padding:6px;
+ background:#111;
+ border-radius:10px;
+}
+
+.cell{
+ width:70px;height:80px;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ font-size:26px;
+ border-radius:6px;
+ background:#222;
+}
+
+.wild{
+ background:#ff0033;
+ box-shadow:0 0 12px red;
 }
 
 button{
- padding:10px 20px;
- font-size:16px;
- border:none;border-radius:6px;
+ margin-top:20px;
+ padding:12px 30px;
+ font-size:18px;
+ border:none;
+ border-radius:8px;
+ background:#ff0033;
+ color:white;
 }
 
+#info{margin-top:15px;}
 </style>
 </head>
 <body>
 
-<div id="table">
+<h2>Saxon 2</h2>
 
-<div id="ai"></div>
-
-<div id="community"></div>
-
-<div id="player"></div>
-
-<div id="controls">
-<button onclick="fold()">Fold</button>
-<button onclick="call()">Call</button>
-<button onclick="raise()">Raise</button>
-</div>
-
+<div id="slot"></div>
+<button onclick="spin()">SPIN ($0.50)</button>
 <div id="info"></div>
 
-</div>
+<audio id="spinSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_6c9a13.mp3"></audio>
+<audio id="winSound" src="https://cdn.pixabay.com/audio/2022/03/10/audio_2701b3.mp3"></audio>
 
 <script>
 
-let deck=[],player=[],ai=[],community=[];
-let pot=0,stage=0;
+const symbols=["⚡","🦅","🎸","🔥","💀","⭐","W"];
 
-// CREATE DECK
-function newDeck(){
- const suits=["♠","♥","♦","♣"];
- const values=["A","K","Q","J","10","9","8","7","6","5","4","3","2"];
- let d=[];
- suits.forEach(s=>{
-   values.forEach(v=>{
-     d.push(v+s);
-   });
- });
- return d.sort(()=>Math.random()-0.5);
-}
+let reels=[[],[],[],[],[]];
+let sticky=[[],[],[],[],[]];
 
-// DEAL
-function deal(){
- deck=newDeck();
- player=[deck.pop(),deck.pop()];
- ai=[deck.pop(),deck.pop()];
- community=[];
- pot=0;
- stage=0;
+let balance=100;
+let bet=0.5;
+
+let freeSpins=0;
+let inBonus=false;
+
+// payout values
+const pay={
+ "⚡":2,"🦅":3,"🎸":4,"🔥":5,"💀":6,"⭐":8,"W":10
+};
+
+// init reels
+function init(){
+ for(let i=0;i<5;i++){
+   reels[i]=[];
+   sticky[i]=[];
+   for(let j=0;j<3;j++){
+     reels[i][j]=rand();
+     sticky[i][j]=false;
+   }
+ }
  render();
 }
 
-// RENDER
+function rand(){
+ if(Math.random()<0.1) return "W";
+ return symbols[Math.floor(Math.random()*symbols.length)];
+}
+
 function render(){
 
- document.getElementById("player").innerHTML =
- player.map(c=>`<div class="card">${c}</div>`).join("");
+ let html="";
 
- document.getElementById("ai").innerHTML =
- ai.map(()=>`<div class="card">🂠</div>`).join("");
+ for(let i=0;i<5;i++){
+   html+=`<div class="reel">`;
 
- document.getElementById("community").innerHTML =
- community.map(c=>`<div class="card">${c}</div>`).join("");
+   for(let j=0;j<3;j++){
+     let s=reels[i][j];
+     let c = s==="W"?"cell wild":"cell";
+     html+=`<div class="${c}">${s}</div>`;
+   }
+
+   html+=`</div>`;
+ }
+
+ document.getElementById("slot").innerHTML=html;
 
  document.getElementById("info").innerText =
- "Pot: "+pot;
+ `Balance: $${balance.toFixed(2)} ${
+   inBonus ? "| BONUS: "+freeSpins : ""
+ }`;
 }
 
-// GAME FLOW
-function next(){
+// spin animation
+function spin(){
 
- if(stage===0){
-   community.push(deck.pop(),deck.pop(),deck.pop());
- }
- else if(stage===1){
-   community.push(deck.pop());
- }
- else if(stage===2){
-   community.push(deck.pop());
- }
- else if(stage===3){
-   showdown();
-   return;
+ let spinSound=document.getElementById("spinSound");
+ spinSound.currentTime=0;
+ spinSound.play().catch(()=>{});
+
+ if(!inBonus){
+   if(balance<bet){
+     alert("No money");
+     return;
+   }
+   balance-=bet;
  }
 
- stage++;
+ if(!inBonus && Math.random()<0.2){
+   startBonus();
+ }
+
+ let spins=10;
+ let interval=setInterval(()=>{
+
+   for(let i=0;i<5;i++){
+     for(let j=0;j<3;j++){
+       if(!sticky[i][j]){
+         reels[i][j]=rand();
+       }
+     }
+   }
+
+   render();
+   spins--;
+
+   if(spins<=0){
+     clearInterval(interval);
+     finalize();
+   }
+
+ },60);
+}
+
+function finalize(){
+
+ for(let i=0;i<5;i++){
+   for(let j=0;j<3;j++){
+
+     if(inBonus && reels[i][j]==="W"){
+       sticky[i][j]=true;
+     }
+   }
+ }
+
+ checkWin();
+
+ if(inBonus){
+   freeSpins--;
+   if(freeSpins<=0) endBonus();
+ }
+
  render();
 }
 
-// ACTIONS
-function call(){
- pot+=10;
- next();
+// simple win check (middle row)
+function checkWin(){
+
+ let row=[
+   reels[0][1],
+   reels[1][1],
+   reels[2][1],
+   reels[3][1],
+   reels[4][1]
+ ];
+
+ let first=row[0];
+ let count=1;
+
+ for(let i=1;i<5;i++){
+   if(row[i]===first || row[i]==="W"){
+     count++;
+   } else break;
+ }
+
+ if(count>=3){
+   let win = pay[first]*count;
+
+   balance+=win;
+
+   let winSound=document.getElementById("winSound");
+   winSound.currentTime=0;
+   winSound.play().catch(()=>{});
+ }
 }
 
-function raise(){
- pot+=20;
- next();
+// bonus
+function startBonus(){
+ inBonus=true;
+ freeSpins=Math.floor(Math.random()*30)+1;
+
+ for(let i=0;i<5;i++){
+   sticky[i]=[false,false,false];
+ }
 }
 
-function fold(){
- alert("You folded");
- deal();
+function endBonus(){
+ inBonus=false;
+ sticky=[[],[],[],[],[]];
 }
 
-// SHOWDOWN
-function showdown(){
-
- document.getElementById("ai").innerHTML =
- ai.map(c=>`<div class="card">${c}</div>`).join("");
-
- let winner = Math.random()>0.5 ? "You win!" : "AI wins!";
- document.getElementById("info").innerText = winner + " Pot: "+pot;
-
- setTimeout(deal,2000);
-}
-
-// START
-deal();
+init();
 
 </script>
 
