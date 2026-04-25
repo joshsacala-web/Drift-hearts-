@@ -1,239 +1,192 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Saxson 2 Ultra</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saxson 2 HD</title><style>
+body{
+ margin:0;
+ background:#0a0a0f;
+ font-family:sans-serif;
+ color:#fff;
+ overflow:hidden;
+}
 
-<style>
-body{margin:0;background:#07070a;font-family:sans-serif;color:#fff;overflow:hidden}
-canvas{display:block}
+#game{
+ width:100vw;
+ height:100vh;
+ display:flex;
+ flex-direction:column;
+ align-items:center;
+ justify-content:center;
+}
+
+#reels{
+ display:flex;
+ gap:10px;
+ background:#111;
+ padding:15px;
+ border:4px solid gold;
+ border-radius:12px;
+ box-shadow:0 0 40px rgba(255,215,0,0.4);
+ overflow:hidden;
+}
+
+.reel{
+ width:90px;
+ height:270px;
+ overflow:hidden;
+ position:relative;
+ background:#000;
+ border-radius:6px;
+}
+
+.strip{
+ position:absolute;
+ width:100%;
+}
+
+.symbol{
+ width:90px;
+ height:90px;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+}
+
+.symbol img{
+ width:80px;
+ height:80px;
+ object-fit:contain;
+}
+
+.blur{
+ filter:blur(3px);
+}
 
 #ui{
- position:fixed;bottom:0;width:100%;
- display:flex;justify-content:space-between;
+ position:fixed;
+ bottom:0;
+ width:100%;
+ display:flex;
+ justify-content:space-between;
  padding:12px;
- background:linear-gradient(#000,#111);
- border-top:2px solid #caa64a;
+ background:#000;
+ border-top:2px solid gold;
 }
 
 button{
- background:linear-gradient(#ffd700,#caa64a);
- color:#000;
- font-weight:bold;
+ background:gold;
  border:none;
- padding:12px 24px;
+ padding:12px 20px;
  font-size:18px;
- border-radius:6px;
- box-shadow:0 0 10px rgba(255,215,0,0.5);
+ font-weight:bold;
 }
-</style>
-</head>
-
-<body>
-
-<canvas id="game"></canvas>
-
-<div id="ui">
+</style></head><body><div id="game"><div id="reels"></div><div id="ui">
 <div>💰 $<span id="bal">100.00</span></div>
 <div>🎁 <span id="fs">0</span></div>
 <div>✖️ x<span id="mult">1</span></div>
 <button onclick="spin()">SPIN</button>
-</div>
+</div></div><script>
 
-<script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
-canvas.width=innerWidth;
-canvas.height=innerHeight;
+// HD SYMBOL IMAGES
+const symbols = {
+ A:"https://i.imgur.com/8Qf6R8R.png",
+ K:"https://i.imgur.com/Y3X9Q9k.png",
+ Q:"https://i.imgur.com/3ZQ3Z3C.png",
+ J:"https://i.imgur.com/qK42fUu.png",
+ W:"https://i.imgur.com/5bZ6F9D.png", // skull wild
+ S1:"https://i.imgur.com/eVQZ8ZP.png", // singer
+ S2:"https://i.imgur.com/L1mY3bY.png"  // motorcycle
+};
 
-// SYMBOL SET (styled)
-const symbols=["A","K","Q","J","W","S1","S2"];
-
-function color(sym){
- return {
-  A:"#6cf",
-  K:"#fc6",
-  Q:"#c6f",
-  J:"#6f6",
-  W:"#ff0",
-  S1:"#f55",
-  S2:"#5ff"
- }[sym];
-}
-
-// REELS
-const reels=[
- ["A","K","Q","J","A","K","W","Q","J"],
- ["K","Q","A","J","S1","K","Q","W"],
- ["Q","A","K","J","W","Q","A"],
- ["A","K","Q","S2","J","W","A"],
- ["K","Q","A","J","W","K"]
+const reelData = [
+ ["A","K","Q","J","W","A","K"],
+ ["K","Q","S1","J","A","K"],
+ ["Q","A","K","J","W"],
+ ["A","K","S2","J","Q"],
+ ["K","Q","A","J","W"]
 ];
 
-// STATE
-let grid=[];
-let spinning=false;
-let speed=[0,0,0,0,0];
-let offset=[0,0,0,0,0];
+let balance=100, bet=0.5;
+let fs=0, mult=1, inBonus=false;
 
-let balance=100,bet=0.5;
-let inBonus=false,fs=0,mult=1;
-let sticky=[false,false,false,false,false];
+const reelsDiv=document.getElementById("reels");
 
-// INIT
-function rand(i){
- return Array.from({length:3},()=>reels[i][Math.floor(Math.random()*reels[i].length)]);
+// CREATE REELS
+function createReels(){
+ reelsDiv.innerHTML="";
+ reelData.forEach((r,i)=>{
+  const reel=document.createElement("div");
+  reel.className="reel";
+
+  const strip=document.createElement("div");
+  strip.className="strip";
+
+  for(let j=0;j<20;j++){
+   let sym=r[Math.floor(Math.random()*r.length)];
+   let div=document.createElement("div");
+   div.className="symbol";
+   div.innerHTML=`<img src="${symbols[sym]}">`;
+   strip.appendChild(div);
+  }
+
+  reel.appendChild(strip);
+  reelsDiv.appendChild(reel);
+ });
 }
-function init(){
- grid=[];
- for(let i=0;i<5;i++) grid.push(rand(i));
-}
-init();
+
+createReels();
 
 // SPIN
 function spin(){
- if(spinning) return;
+ if(fs<=0 && balance<bet) return;
 
- if(!inBonus){
-  if(balance<bet) return;
-  balance-=bet;
- } else fs--;
+ if(fs>0) fs--;
+ else balance-=bet;
 
- spinning=true;
+ document.querySelectorAll(".strip").forEach((strip,i)=>{
+   strip.classList.add("blur");
 
- for(let i=0;i<5;i++){
-  speed[i]=25+i*4;
- }
+   let stop=500 + i*200;
 
- // anticipation
- if(grid[1].includes("S1")){
-  speed[3]=8;
- }
+   strip.style.transition=`transform ${1+i*0.2}s cubic-bezier(.2,.8,.2,1)`;
+
+   let offset=-(Math.floor(Math.random()*15)+5)*90;
+
+   setTimeout(()=>{
+     strip.style.transform=`translateY(${offset}px)`;
+   },50);
+
+   setTimeout(()=>{
+     strip.classList.remove("blur");
+     if(i===4) endSpin();
+   },stop);
+ });
 }
 
-// END
+// END SPIN
 function endSpin(){
 
- let s1=grid[1].includes("S1");
- let s2=grid[3].includes("S2");
+ // SIMPLE BONUS TRIGGER
+ let trigger=Math.random();
 
- if(!inBonus && s1 && s2){
-  inBonus=true;
-  fs=getFS();
-  mult=1;
+ if(!inBonus && trigger<0.15){
+   inBonus=true;
+   fs=10+Math.floor(Math.random()*10);
+   mult=1;
  }
-
- let win=calcWin();
 
  if(inBonus){
-  applySticky();
-  if(win>0){
-   win*=mult;
    mult++;
-  }
-  if(fs<=0){
-   inBonus=false;
-   mult=1;
-   sticky=[false,false,false,false,false];
-  }
- }
-
- balance+=win;
- updateUI();
-}
-
-// FS
-function getFS(){
- let r=Math.random();
- if(r<0.4) return 8;
- if(r<0.7) return 10;
- if(r<0.9) return 12;
- if(r<0.97) return 15;
- if(r<0.995) return 20;
- return 30;
-}
-
-// STICKY
-function applySticky(){
- for(let i=0;i<5;i++){
-  if(grid[i].includes("W")) sticky[i]=true;
-  if(sticky[i]) grid[i]=["W","W","W"];
- }
-}
-
-// WIN
-function calcWin(){
- let w=0;
- for(let r=0;r<3;r++){
-  let f=grid[0][r];
-  let c=1;
-  for(let i=1;i<5;i++){
-   let s=grid[i][r];
-   if(s===f || s==="W") c++;
-   else break;
-  }
-  if(c>=3) w+=c*2;
- }
- return w;
-}
-
-// UPDATE
-function update(){
-
- if(spinning){
-  for(let i=0;i<5;i++){
-   offset[i]+=speed[i];
-   speed[i]*=0.9;
-
-   if(speed[i]<0.5){
-    speed[i]=0;
-    grid[i]=rand(i);
+   if(fs<=0){
+     inBonus=false;
+     mult=1;
    }
-  }
-
-  if(speed.every(s=>s===0)){
-   spinning=false;
-   endSpin();
-  }
  }
-}
 
-// DRAW
-function draw(){
+ balance += Math.random()*2;
 
- ctx.fillStyle="#050507";
- ctx.fillRect(0,0,canvas.width,canvas.height);
-
- // frame
- ctx.strokeStyle="#caa64a";
- ctx.lineWidth=6;
- ctx.strokeRect(80,80,500,300);
-
- for(let i=0;i<5;i++){
-  for(let j=0;j<3;j++){
-
-   let x=100+i*100;
-   let y=100+j*100-(offset[i]%100);
-
-   let sym=grid[i][j];
-
-   // slot cell
-   ctx.fillStyle="#111";
-   ctx.fillRect(x,y,90,90);
-
-   // glow
-   ctx.shadowBlur=15;
-   ctx.shadowColor=color(sym);
-
-   // symbol
-   ctx.fillStyle=color(sym);
-   ctx.font="bold 28px sans-serif";
-   ctx.fillText(sym,x+25,y+55);
-
-   ctx.shadowBlur=0;
-  }
- }
+ updateUI();
 }
 
 // UI
@@ -243,14 +196,5 @@ function updateUI(){
  mult.innerText=mult;
 }
 
-// LOOP
-function loop(){
- update();
- draw();
- requestAnimationFrame(loop);
-}
-loop();
-</script>
-
-</body>
+</script></body>
 </html>
