@@ -3,21 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calm Heart</title>
+<title>Calm Heart – Guided Breathing</title>
 
 <style>
 body {
     margin: 0;
     overflow: hidden;
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, Arial, sans-serif;
     color: white;
 }
 
-/* 🌅 BEACH BACKGROUND (ALWAYS WORKS) */
+/* 🌅 BACKGROUND (reliable) */
 .bg {
     position: fixed;
     inset: 0;
-    background: linear-gradient(to top, #020617, #0f172a 40%, #1e3a8a 70%, #f97316);
+    background: linear-gradient(to top, #020617, #0a1a2f 40%, #1e3a8a 70%, #f97316);
+    filter: brightness(0.85);
 }
 
 /* 🌊 OCEAN */
@@ -25,78 +26,73 @@ body {
     position: absolute;
     bottom: 0;
     width: 100%;
-    height: 40%;
-    background: linear-gradient(to top, rgba(0,120,200,0.6), transparent);
+    height: 45%;
+    background: linear-gradient(to top, rgba(0,100,200,0.5), transparent);
 }
 
 /* APP */
 #app {
     position: absolute;
-    top: 30%;
+    top: 26%;
     width: 100%;
     text-align: center;
 }
 
-/* ❤️ HEART CONTAINER */
+/* ❤️ HEART */
 .heart {
-    width: 150px;
-    height: 150px;
+    width: 160px;
+    height: 160px;
     margin: auto;
     position: relative;
 }
 
-/* OUTLINE */
-.heart svg {
-    width: 100%;
-    height: 100%;
-}
-
-/* FILL */
 .fill {
     position: absolute;
     bottom: 0;
     width: 100%;
     height: 0%;
-    background: red;
+    background: linear-gradient(to top, #ff4d4d, #ff9999);
     border-radius: 50% 50% 0 0;
-    transition: height 4s linear;
 }
+
+/* outline */
+svg { position: absolute; inset: 0; }
 
 /* TEXT */
-#label {
-    margin-top: 20px;
-    font-size: 30px;
-}
+#label { margin-top: 20px; font-size: 26px; letter-spacing: 1px; }
+#timer { margin-top: 6px; font-size: 18px; opacity: 0.7; }
 
-#timer {
-    margin-top: 10px;
-    font-size: 20px;
-    opacity: 0.8;
+/* CONTROLS */
+.controls {
+    margin-top: 15px;
 }
+button {
+    margin: 5px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+}
+.primary { background: #ef4444; color: white; }
+.secondary { background: #334155; color: white; }
 
-/* START SCREEN */
+/* START */
 #startScreen {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.6);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
 }
-
-/* BUTTON */
-button {
-    margin-top: 15px;
-    padding: 12px 24px;
-    border-radius: 10px;
-    border: none;
-    font-size: 16px;
-    cursor: pointer;
-    background: #ef4444;
-    color: white;
+.note {
+    max-width: 320px;
+    font-size: 13px;
+    opacity: 0.7;
+    margin-top: 10px;
+    text-align: center;
 }
-
 </style>
 </head>
 
@@ -107,7 +103,12 @@ button {
 
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
-    <button onclick="start()">Start</button>
+    <p>Slow breathing can help reduce symptoms</p>
+    <button class="primary" onclick="start()">Start</button>
+    <div class="note">
+        This tool supports relaxation. It is not a medical device.
+        If you have severe symptoms, seek medical care.
+    </div>
 </div>
 
 <div id="app">
@@ -120,6 +121,12 @@ button {
 
     <div id="label">READY</div>
     <div id="timer">60</div>
+
+    <div class="controls">
+        <button class="secondary" onclick="pause()">Pause</button>
+        <button class="secondary" onclick="resume()">Resume</button>
+        <button class="secondary" onclick="stop()">Stop</button>
+    </div>
 </div>
 
 <script>
@@ -129,72 +136,103 @@ let label = document.getElementById("label");
 let timerEl = document.getElementById("timer");
 
 let running = false;
-let seconds = 60;
+let paused = false;
+let startTime = 0;
+let pauseTime = 0;
+let total = 60;
 
-/* 🔊 CALMER VOICE */
-function speak(text) {
-    let msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 0.65;
-    msg.pitch = 0.7;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(msg);
+/* 🔊 SOFT TONE */
+let ctx = new (window.AudioContext || window.webkitAudioContext)();
+let osc = ctx.createOscillator();
+let gain = ctx.createGain();
+osc.frequency.value = 110;
+gain.gain.value = 0;
+osc.connect(gain);
+gain.connect(ctx.destination);
+osc.start();
+
+/* 📳 HAPTICS */
+function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
 }
 
 function start() {
     document.getElementById("startScreen").style.display = "none";
     running = true;
-    countdown();
-    breatheLoop();
+    paused = false;
+    startTime = performance.now();
+
+    gain.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 2);
+
+    loop();
 }
 
-/* ⏱ TIMER */
-function countdown() {
-    let interval = setInterval(() => {
-        seconds--;
-        timerEl.innerText = seconds;
-
-        if (seconds <= 0) {
-            clearInterval(interval);
-            endSession();
-        }
-    }, 1000);
+function pause() {
+    if (!running) return;
+    paused = true;
+    pauseTime = performance.now();
 }
 
-/* 🫁 BREATH LOOP */
-async function breatheLoop() {
-    while (running) {
+function resume() {
+    if (!paused) return;
+    paused = false;
+    let now = performance.now();
+    startTime += (now - pauseTime);
+    loop();
+}
 
-        // INHALE
-        label.innerText = "INHALE";
-        speak("Inhale");
-        fill.style.transition = "height 4s linear";
-        fill.style.height = "100%";
-        await sleep(4000);
+function stop() {
+    running = false;
+    label.innerText = "Stopped";
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1);
+}
 
-        // EXHALE
-        label.innerText = "EXHALE";
-        speak("Exhale");
-        fill.style.transition = "height 6s linear";
-        fill.style.height = "0%";
-        await sleep(6000);
+/* 🫁 MAIN LOOP */
+function loop() {
+    if (!running || paused) return;
+
+    let now = performance.now();
+    let elapsed = (now - startTime) / 1000;
+    let remaining = Math.max(0, total - elapsed);
+
+    timerEl.innerText = Math.ceil(remaining);
+
+    if (remaining <= 0) {
+        endSession();
+        return;
     }
+
+    // 4s inhale / 6s exhale
+    let cycle = elapsed % 10;
+
+    if (cycle < 4) {
+        label.innerText = "Inhale";
+        fill.style.height = (cycle / 4) * 100 + "%";
+        vibrate(10);
+    } else {
+        label.innerText = "Exhale";
+        let t = (cycle - 4) / 6;
+        fill.style.height = (1 - t) * 100 + "%";
+        vibrate([5,20,5]);
+    }
+
+    requestAnimationFrame(loop);
 }
 
-/* END */
 function endSession() {
     running = false;
-    label.innerText = "Try again";
-    speak("Try again");
+
+    label.innerText = "Session complete";
+    timerEl.innerText = "";
+
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2);
 
     let btn = document.createElement("button");
-    btn.innerText = "Restart";
+    btn.className = "primary";
+    btn.innerText = "Try again";
     btn.onclick = () => location.reload();
 
     document.getElementById("app").appendChild(btn);
-}
-
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
 }
 
 </script>
