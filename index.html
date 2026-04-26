@@ -9,16 +9,17 @@
 body {
     margin: 0;
     overflow: hidden;
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, Arial;
     color: white;
 }
 
-/* 🌊 BEACH (MOVES NOW) */
+/* 🌊 BACKGROUND */
 .bg {
     position: fixed;
     inset: 0;
-    background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e") no-repeat center/cover;
-    transition: transform 4s ease;
+    background: url("https://images.unsplash.com/photo-1501959915551-4e8d30928317") no-repeat center/cover;
+    filter: brightness(0.7) blur(1px) saturate(0.9);
+    transition: transform 8s ease;
 }
 
 /* DARK OVERLAY */
@@ -31,22 +32,22 @@ body {
 /* APP */
 #app {
     position: absolute;
-    top: 28%;
+    top: 30%;
     width: 100%;
     text-align: center;
 }
 
 /* ❤️ HEART */
 .heart {
-    font-size: 120px;
-    transition: transform 0.2s ease;
-    filter: drop-shadow(0 0 30px rgba(255,60,60,0.9));
+    font-size: 110px;
+    transition: transform 0.5s ease;
+    filter: drop-shadow(0 0 18px rgba(255,80,80,0.5));
 }
 
 /* TEXT */
 #label { font-size: 30px; }
-#feedback { opacity: 0.85; margin-top: 5px; }
-#timer { opacity: 0.6; }
+#feedback { opacity: 0.8; margin-top: 6px; }
+#timer { opacity: 0.5; }
 
 /* START */
 #startScreen {
@@ -68,7 +69,6 @@ button {
     color:white;
     font-size:16px;
 }
-
 </style>
 </head>
 
@@ -76,6 +76,11 @@ button {
 
 <div class="bg" id="bg"></div>
 <div class="overlay"></div>
+
+<!-- 🌊 OCEAN SOUND -->
+<audio id="ocean" loop>
+  <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_7c2e5c7c9e.mp3">
+</audio>
 
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
@@ -96,30 +101,52 @@ let label = document.getElementById("label");
 let feedback = document.getElementById("feedback");
 let timerEl = document.getElementById("timer");
 let bg = document.getElementById("bg");
+let ocean = document.getElementById("ocean");
+
+let ctx = new (window.AudioContext || window.webkitAudioContext)();
+let tone = ctx.createOscillator();
+let gain = ctx.createGain();
+
+tone.type = "sine";
+tone.frequency.value = 90;
+gain.gain.value = 0;
+
+tone.connect(gain);
+gain.connect(ctx.destination);
+tone.start();
 
 let running = false;
 let startTime;
 let total = 60;
 
-/* 🎧 BETTER VOICE */
+/* 🎧 VOICE */
 function speak(text) {
     let msg = new SpeechSynthesisUtterance(text);
-
-    // less robotic
-    msg.rate = 0.75;
-    msg.pitch = 0.8;
-
-    // try to pick better voice if available
-    let voices = speechSynthesis.getVoices();
-    let calmVoice = voices.find(v => v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("google"));
-    if (calmVoice) msg.voice = calmVoice;
-
+    msg.rate = 0.65;
+    msg.pitch = 0.85;
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
 }
 
+/* 📳 HAPTIC */
+function pulse(strength=20) {
+    if (navigator.vibrate) navigator.vibrate(strength);
+}
+
 function start() {
     document.getElementById("startScreen").style.display = "none";
+
+    // start soundscape
+    ocean.volume = 0;
+    ocean.play().catch(()=>{});
+    let fadeIn = setInterval(()=>{
+        if (ocean.volume < 0.25) ocean.volume += 0.01;
+        else clearInterval(fadeIn);
+    }, 100);
+
+    ctx.resume();
+    gain.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 2);
+
     running = true;
     startTime = performance.now();
     loop();
@@ -143,16 +170,15 @@ function loop() {
 
     if (cycle < 4) {
         // INHALE
+        let t = cycle / 4;
+
         label.innerText = "Inhale";
-
-        let scale = 1 + cycle * 0.12;
-        heart.style.transform = `scale(${scale})`;
-
-        // 🌊 MOVE OCEAN UP (THIS IS THE REAL FIX)
-        bg.style.transform = "scale(1.1) translateY(-20px)";
+        heart.style.transform = `scale(${1 + t * 0.15})`;
+        bg.style.transform = "scale(1.04) translateY(-8px)";
 
         if (Math.floor(cycle) === 0) {
-            speak("Inhale...");
+            speak("Inhale");
+            pulse(25);
         }
 
         feedback.innerText = "Slow breath in";
@@ -162,18 +188,15 @@ function loop() {
         let t = (cycle - 4) / 6;
 
         label.innerText = "Exhale";
-
-        let scale = 1.5 - t * 0.5;
-        heart.style.transform = `scale(${scale})`;
-
-        // 🌊 MOVE OCEAN DOWN
-        bg.style.transform = "scale(1) translateY(20px)";
+        heart.style.transform = `scale(${1.15 - t * 0.15})`;
+        bg.style.transform = "scale(1) translateY(8px)";
 
         if (Math.floor(cycle) === 4) {
-            speak("Exhale...");
+            speak("Exhale");
+            pulse([10,30,10]);
         }
 
-        feedback.innerText = "Let it go";
+        feedback.innerText = "Let your body soften";
     }
 
     requestAnimationFrame(loop);
@@ -182,7 +205,7 @@ function loop() {
 function endSession() {
     running = false;
 
-    let msg = "You're back in control";
+    let msg = "This is here when you need it.";
 
     label.innerText = msg;
     feedback.innerText = "";
@@ -190,7 +213,17 @@ function endSession() {
 
     speak(msg);
 
-    // 🔁 ALWAYS SHOW RETRY (FIXED)
+    // fade audio out
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2);
+
+    let fadeOut = setInterval(()=>{
+        if (ocean.volume > 0.02) ocean.volume -= 0.01;
+        else {
+            ocean.pause();
+            clearInterval(fadeOut);
+        }
+    }, 100);
+
     let btn = document.createElement("button");
     btn.innerText = "Retry";
     btn.style.position = "absolute";
