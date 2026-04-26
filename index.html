@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calm Heart Immersive</title>
+<title>Calm Heart</title>
 
 <style>
 body {
@@ -13,49 +13,40 @@ body {
     color: white;
 }
 
-/* 🌊 BACKGROUND */
+/* 🌊 BEACH (MOVES NOW) */
 .bg {
     position: fixed;
     inset: 0;
     background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e") no-repeat center/cover;
-    filter: brightness(0.7);
+    transition: transform 4s ease;
 }
 
+/* DARK OVERLAY */
 .overlay {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.35);
 }
 
-/* 🌊 WAVE */
-.wave {
+/* APP */
+#app {
     position: absolute;
-    bottom: 0;
-    width: 200%;
-    height: 200px;
-    background: rgba(255,255,255,0.12);
-    border-radius: 40%;
-    animation: waveFlow 8s linear infinite;
-}
-
-@keyframes waveFlow {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
+    top: 28%;
+    width: 100%;
+    text-align: center;
 }
 
 /* ❤️ HEART */
 .heart {
     font-size: 120px;
-    text-align: center;
-    margin-top: 30vh;
-    transition: transform 0.15s ease;
-    filter: drop-shadow(0 0 25px rgba(255,60,60,0.9));
+    transition: transform 0.2s ease;
+    filter: drop-shadow(0 0 30px rgba(255,60,60,0.9));
 }
 
 /* TEXT */
-#label { text-align:center; font-size:28px; margin-top:10px; }
-#feedback { text-align:center; opacity:0.8; }
-#timer { text-align:center; opacity:0.6; }
+#label { font-size: 30px; }
+#feedback { opacity: 0.85; margin-top: 5px; }
+#timer { opacity: 0.6; }
 
 /* START */
 #startScreen {
@@ -70,11 +61,12 @@ body {
 
 button {
     margin-top:15px;
-    padding:10px 20px;
+    padding:12px 24px;
     border:none;
-    border-radius:8px;
+    border-radius:10px;
     background:#ef4444;
     color:white;
+    font-size:16px;
 }
 
 </style>
@@ -82,19 +74,20 @@ button {
 
 <body>
 
-<div class="bg"></div>
+<div class="bg" id="bg"></div>
 <div class="overlay"></div>
-<div class="wave" id="wave"></div>
 
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
     <button onclick="start()">Start</button>
 </div>
 
-<div class="heart" id="heart">❤️</div>
-<div id="label">READY</div>
-<div id="feedback"></div>
-<div id="timer">60</div>
+<div id="app">
+    <div class="heart" id="heart">❤️</div>
+    <div id="label">READY</div>
+    <div id="feedback"></div>
+    <div id="timer">60</div>
+</div>
 
 <script>
 
@@ -102,66 +95,31 @@ let heart = document.getElementById("heart");
 let label = document.getElementById("label");
 let feedback = document.getElementById("feedback");
 let timerEl = document.getElementById("timer");
-
-let ctx = new (window.AudioContext || window.webkitAudioContext)();
+let bg = document.getElementById("bg");
 
 let running = false;
 let startTime;
 let total = 60;
 
-/* 💓 HEARTBEAT SOUND */
-function heartbeat() {
-    let osc = ctx.createOscillator();
-    let gain = ctx.createGain();
-
-    osc.type = "sine";
-    osc.frequency.value = 60;
-
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start();
-    osc.stop(ctx.currentTime + 0.2);
-}
-
-/* 🌊 OCEAN SOUND */
-function ocean() {
-    let noise = ctx.createBufferSource();
-    let buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    let data = buffer.getChannelData(0);
-
-    for (let i = 0; i < data.length; i++) {
-        data[i] = Math.random() * 2 - 1;
-    }
-
-    noise.buffer = buffer;
-
-    let gain = ctx.createGain();
-    gain.gain.value = 0.02;
-
-    noise.connect(gain);
-    gain.connect(ctx.destination);
-
-    noise.loop = true;
-    noise.start();
-}
-
-/* 🎧 VOICE */
+/* 🎧 BETTER VOICE */
 function speak(text) {
     let msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 0.85;
+
+    // less robotic
+    msg.rate = 0.75;
+    msg.pitch = 0.8;
+
+    // try to pick better voice if available
+    let voices = speechSynthesis.getVoices();
+    let calmVoice = voices.find(v => v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("google"));
+    if (calmVoice) msg.voice = calmVoice;
+
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
 }
 
 function start() {
     document.getElementById("startScreen").style.display = "none";
-    ctx.resume();
-    ocean();
-
     running = true;
     startTime = performance.now();
     loop();
@@ -184,25 +142,38 @@ function loop() {
     let cycle = elapsed % 10;
 
     if (cycle < 4) {
+        // INHALE
         label.innerText = "Inhale";
-        heart.style.transform = "scale(" + (1 + cycle * 0.12) + ")";
-        feedback.innerText = "Breathing in";
+
+        let scale = 1 + cycle * 0.12;
+        heart.style.transform = `scale(${scale})`;
+
+        // 🌊 MOVE OCEAN UP (THIS IS THE REAL FIX)
+        bg.style.transform = "scale(1.1) translateY(-20px)";
 
         if (Math.floor(cycle) === 0) {
-            speak("Inhale");
-            heartbeat();
+            speak("Inhale...");
         }
+
+        feedback.innerText = "Slow breath in";
 
     } else {
+        // EXHALE
         let t = (cycle - 4) / 6;
+
         label.innerText = "Exhale";
-        heart.style.transform = "scale(" + (1.5 - t * 0.5) + ")";
-        feedback.innerText = "Let go";
+
+        let scale = 1.5 - t * 0.5;
+        heart.style.transform = `scale(${scale})`;
+
+        // 🌊 MOVE OCEAN DOWN
+        bg.style.transform = "scale(1) translateY(20px)";
 
         if (Math.floor(cycle) === 4) {
-            speak("Exhale");
-            heartbeat();
+            speak("Exhale...");
         }
+
+        feedback.innerText = "Let it go";
     }
 
     requestAnimationFrame(loop);
@@ -211,14 +182,22 @@ function loop() {
 function endSession() {
     running = false;
 
-    label.innerText = "You're back in control";
+    let msg = "You're back in control";
+
+    label.innerText = msg;
     feedback.innerText = "";
     timerEl.innerText = "";
 
-    speak("You're back in control");
+    speak(msg);
 
+    // 🔁 ALWAYS SHOW RETRY (FIXED)
     let btn = document.createElement("button");
     btn.innerText = "Retry";
+    btn.style.position = "absolute";
+    btn.style.bottom = "20%";
+    btn.style.left = "50%";
+    btn.style.transform = "translateX(-50%)";
+
     btn.onclick = () => location.reload();
 
     document.body.appendChild(btn);
