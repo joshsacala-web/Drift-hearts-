@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AFib Drift Pro</title>
+<title>AFib Drift Hybrid (Beach + Ocean Pro)</title>
 <style>
 body {
   margin: 0;
@@ -11,11 +11,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  background: linear-gradient(to top, #041018 0%, #063042 40%, #0aa3c7 70%, #7be7ff 100%);
-}canvas { position: absolute; top: 0; left: 0; }
+  color: white;/* REAL BEACH BASE LAYER */ background: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80') center/cover no-repeat; }
 
-#ui { z-index: 2; text-align: center; width: 100%; max-width: 420px; }
+/* soft atmospheric overlay */ #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, rgba(0,20,30,0.65), rgba(0,0,0,0.1)); z-index: 1; }
+
+canvas { position: absolute; top: 0; left: 0; z-index: 2; }
+
+#ui { z-index: 3; text-align: center; width: 100%; max-width: 420px; }
 
 #heartWrap { width: 160px; height: 160px; margin: 20px auto; position: relative; }
 
@@ -27,26 +29,25 @@ body {
 
 #heart::after { left: 0; transform: rotate(45deg); transform-origin: 100% 100%; }
 
-#fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(255,255,255,0.18); transition: height 1s ease; }
+#fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(255,255,255,0.22); transition: height 1s ease; }
 
 button { padding: 12px 20px; border: none; border-radius: 12px; background: #00e0ff; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
-#text { margin-top: 12px; font-size: 15px; opacity: 0.9; }
+#text { margin-top: 12px; font-size: 15px; opacity: 0.95; }
 
-#mode { font-size: 12px; opacity: 0.6; margin-top: 6px; } </style>
+#mode { font-size: 12px; opacity: 0.7; margin-top: 6px; } </style>
 
 </head>
-<body><canvas id="waves"></canvas>
-
-<div id="ui">
+<body><div id="overlay"></div>
+<canvas id="waves"></canvas><div id="ui">
   <div id="heartWrap">
     <div id="heart">
       <div id="fill"></div>
     </div>
-  </div><button onclick="start()">Start Drift Pro Session</button>
+  </div><button onclick="start()">Start Hybrid Drift</button>
 
   <div id="text">Tap to begin breathing flow</div>
-  <div id="mode">adaptive drift breathing</div>
+  <div id="mode">beach + ocean drift system</div>
 </div><script>
 const canvas = document.getElementById("waves");
 const ctx = canvas.getContext("2d");
@@ -62,23 +63,23 @@ let running = false;
 let startTime;
 let lastCycle = -1;
 let fill = 0;
-let stability = 0; // adaptive calming factor
+let stability = 0;
 
 function drawWaves(t) {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  const baseY = canvas.height * 0.75;
+  const baseY = canvas.height * 0.78;
 
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
     ctx.moveTo(0, baseY);
 
     for (let x = 0; x < canvas.width; x++) {
-      const y = baseY + Math.sin((x * 0.01) + t * (0.6 + i * 0.2)) * (20 + stability * 10);
+      const y = baseY + Math.sin((x * 0.012) + t * (0.6 + i * 0.2)) * (18 + stability * 12);
       ctx.lineTo(x, y);
     }
 
-    ctx.strokeStyle = `rgba(255,255,255,${0.15 - i * 0.04})`;
+    ctx.strokeStyle = `rgba(255,255,255,${0.18 - i * 0.05})`;
     ctx.lineWidth = 2;
     ctx.stroke();
   }
@@ -99,38 +100,35 @@ function animate() {
 
   drawWaves(t);
 
-  const breath = Math.sin(t * (0.65 + stability * 0.1));
+  const breath = Math.sin(t * (0.7 + stability * 0.15));
 
   const heart = document.getElementById("heart");
-  heart.style.transform = `scale(${1 + breath * 0.08})`;
+  heart.style.transform = `scale(${1 + breath * 0.09})`;
 
   if (breath > 0.2) {
     document.getElementById("text").textContent = "Inhale... ocean rising";
   } else if (breath < -0.2) {
-    document.getElementById("text").textContent = "Exhale... drifting down";
+    document.getElementById("text").textContent = "Exhale... beach settling";
   } else {
-    document.getElementById("text").textContent = "steady drift";
+    document.getElementById("text").textContent = "drift state";
   }
 
-  // adaptive calming (simulates settling)
-  stability += 0.0008;
+  stability += 0.0007;
   stability = Math.min(stability, 1);
 
-  // fill heart per completed cycle
   const cycle = Math.floor(t / 6);
   if (cycle !== lastCycle) {
     lastCycle = cycle;
-    fill = Math.min(fill + 10 + stability * 5, 100);
+    fill = Math.min(fill + 12 + stability * 6, 100);
     document.getElementById("fill").style.height = fill + "%";
   }
 
   requestAnimationFrame(animate);
 }
 
-// tap anywhere to reset session
 window.addEventListener("click", () => {
   running = false;
-  document.getElementById("text").textContent = "session reset — ready";
+  document.getElementById("text").textContent = "session reset";
   document.getElementById("fill").style.height = "0%";
   fill = 0;
   stability = 0;
