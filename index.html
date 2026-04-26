@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calm Heart Ultra</title>
+<title>Calm Heart</title>
 
 <style>
 body {
@@ -13,15 +13,14 @@ body {
     color: white;
 }
 
-/* 🌅 FAKE REALISTIC BEACH (NO INTERNET NEEDED) */
+/* 🌅 BACKGROUND */
 .bg {
     position: fixed;
     inset: 0;
-    background:
-        linear-gradient(to top, #020617 0%, #0f172a 40%, #1e3a8a 70%, #f97316 100%);
+    background: linear-gradient(to top, #020617, #0f172a 40%, #1e3a8a 70%, #f97316);
 }
 
-/* 🌊 OCEAN LAYER */
+/* 🌊 OCEAN */
 .ocean {
     position: absolute;
     bottom: 0;
@@ -30,13 +29,12 @@ body {
     background: linear-gradient(to top, rgba(0,100,200,0.6), transparent);
 }
 
-/* subtle wave motion */
 .ocean::before {
     content: "";
     position: absolute;
     width: 200%;
     height: 100%;
-    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.15), transparent 70%);
+    background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
     animation: wave 10s linear infinite;
 }
 
@@ -45,7 +43,6 @@ body {
     100% { transform: translateX(-50%); }
 }
 
-/* overlay */
 .overlay {
     position: fixed;
     inset: 0;
@@ -62,30 +59,18 @@ body {
 
 /* HEART */
 .heart {
-    width: 180px;
-    margin: auto;
-    transform: scale(1);
+    font-size: 100px;
     transition: transform 0.3s ease;
-    filter: drop-shadow(0 0 40px rgba(255,80,80,0.9));
 }
 
 /* TEXT */
 #label {
-    margin-top: 30px;
-    font-size: 34px;
-    letter-spacing: 4px;
-}
-
-/* PANEL */
-.panel {
     margin-top: 20px;
-    background: rgba(255,255,255,0.1);
-    padding: 10px 20px;
-    border-radius: 12px;
-    display: inline-block;
+    font-size: 32px;
+    letter-spacing: 3px;
 }
 
-/* START */
+/* START SCREEN */
 #startScreen {
     position: absolute;
     inset: 0;
@@ -97,15 +82,15 @@ body {
 }
 
 button {
-    margin-top: 12px;
-    padding: 12px 26px;
+    margin-top: 15px;
+    padding: 12px 24px;
     border-radius: 10px;
     border: none;
     font-size: 16px;
+    cursor: pointer;
 }
 
 #startBtn { background: #ef4444; color: white; }
-#soundBtn { background: #334155; color: white; }
 
 </style>
 </head>
@@ -116,81 +101,108 @@ button {
 <div class="ocean"></div>
 <div class="overlay"></div>
 
-<audio id="oceanSound" loop>
-    <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b4c9d.mp3">
-</audio>
-
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
     <button id="startBtn" onclick="start()">Start</button>
-    <button id="soundBtn" onclick="toggleSound()">Sound: ON</button>
 </div>
 
 <div id="app">
     <div class="heart" id="heart">❤️</div>
     <div id="label">READY</div>
-    <div class="panel">4s inhale • 6s exhale</div>
 </div>
 
 <script>
 
 let heart = document.getElementById("heart");
 let label = document.getElementById("label");
-let oceanSound = document.getElementById("oceanSound");
 
 let running = false;
-let soundOn = true;
+let startTime;
 
+/* 🔊 CALMER VOICE */
 function speak(text) {
-    if (!soundOn) return;
     let msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 0.7;
-    msg.pitch = 0.8;
+    msg.rate = 0.65;
+    msg.pitch = 0.7;
+    msg.volume = 1;
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
 }
 
-function toggleSound() {
-    soundOn = !soundOn;
-    document.getElementById("soundBtn").innerText =
-        "Sound: " + (soundOn ? "ON" : "OFF");
+/* 🔔 END TONE */
+function endTone() {
+    let ctx = new (window.AudioContext || window.webkitAudioContext)();
+    let osc = ctx.createOscillator();
+    let gain = ctx.createGain();
 
-    if (!soundOn) oceanSound.pause();
-    else oceanSound.play();
+    osc.frequency.value = 432;
+    gain.gain.value = 0.1;
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 1.5);
 }
 
 function start() {
     document.getElementById("startScreen").style.display = "none";
     running = true;
-
-    if (soundOn) {
-        oceanSound.volume = 0.4;
-        oceanSound.play();
-    }
-
+    startTime = Date.now();
     intro();
 }
 
 async function intro() {
-    speak("Follow the heart");
-    await sleep(1500);
+    speak("Follow the heart. Breathe slowly.");
+    await sleep(2000);
     breatheLoop();
 }
 
 async function breatheLoop() {
     while (running) {
 
+        let elapsed = (Date.now() - startTime) / 1000;
+
+        if (elapsed >= 60) {
+            endSession();
+            break;
+        }
+
+        // INHALE
         label.innerText = "INHALE";
         speak("Inhale");
-        heart.style.transform = "scale(1.6)";
+        heart.style.transform = "scale(1.5)";
         await sleep(4000);
 
+        // HOLD
+        label.innerText = "HOLD";
+        await sleep(800);
+
+        // EXHALE
         label.innerText = "EXHALE";
         speak("Exhale");
         heart.style.transform = "scale(1)";
         await sleep(6000);
 
+        label.innerText = "";
+        await sleep(500);
     }
+}
+
+function endSession() {
+    running = false;
+
+    label.innerText = "CALM";
+    speak("Well done. You are calm.");
+    endTone();
+
+    let btn = document.createElement("button");
+    btn.innerText = "Continue";
+    btn.onclick = () => {
+        window.location.href = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    };
+
+    document.getElementById("app").appendChild(btn);
 }
 
 function sleep(ms) {
