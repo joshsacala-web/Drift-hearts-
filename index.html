@@ -9,11 +9,11 @@
 body {
     margin: 0;
     overflow: hidden;
-    font-family: -apple-system, Arial, sans-serif;
+    font-family: Arial, sans-serif;
     color: white;
 }
 
-/* 🌅 BACKGROUND */
+/* 🌅 BEACH BACKGROUND (ALWAYS WORKS) */
 .bg {
     position: fixed;
     inset: 0;
@@ -26,48 +26,52 @@ body {
     bottom: 0;
     width: 100%;
     height: 40%;
-    background: linear-gradient(to top, rgba(0,100,200,0.6), transparent);
-}
-
-.ocean::before {
-    content: "";
-    position: absolute;
-    width: 200%;
-    height: 100%;
-    background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
-    animation: wave 10s linear infinite;
-}
-
-@keyframes wave {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
-}
-
-.overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
+    background: linear-gradient(to top, rgba(0,120,200,0.6), transparent);
 }
 
 /* APP */
 #app {
     position: absolute;
-    top: 35%;
+    top: 30%;
     width: 100%;
     text-align: center;
 }
 
-/* HEART */
+/* ❤️ HEART CONTAINER */
 .heart {
-    font-size: 100px;
-    transition: transform 0.3s ease;
+    width: 150px;
+    height: 150px;
+    margin: auto;
+    position: relative;
+}
+
+/* OUTLINE */
+.heart svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* FILL */
+.fill {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 0%;
+    background: red;
+    border-radius: 50% 50% 0 0;
+    transition: height 4s linear;
 }
 
 /* TEXT */
 #label {
     margin-top: 20px;
-    font-size: 32px;
-    letter-spacing: 3px;
+    font-size: 30px;
+}
+
+#timer {
+    margin-top: 10px;
+    font-size: 20px;
+    opacity: 0.8;
 }
 
 /* START SCREEN */
@@ -81,6 +85,7 @@ body {
     align-items: center;
 }
 
+/* BUTTON */
 button {
     margin-top: 15px;
     padding: 12px 24px;
@@ -88,9 +93,9 @@ button {
     border: none;
     font-size: 16px;
     cursor: pointer;
+    background: #ef4444;
+    color: white;
 }
-
-#startBtn { background: #ef4444; color: white; }
 
 </style>
 </head>
@@ -99,108 +104,91 @@ button {
 
 <div class="bg"></div>
 <div class="ocean"></div>
-<div class="overlay"></div>
 
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
-    <button id="startBtn" onclick="start()">Start</button>
+    <button onclick="start()">Start</button>
 </div>
 
 <div id="app">
-    <div class="heart" id="heart">❤️</div>
+    <div class="heart">
+        <div class="fill" id="fill"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M12 21s-6-4.35-9-8.5S3 3 7.5 3C9.5 3 12 5 12 5s2.5-2 4.5-2C21 3 21 8 21 12.5S12 21 12 21z"/>
+        </svg>
+    </div>
+
     <div id="label">READY</div>
+    <div id="timer">60</div>
 </div>
 
 <script>
 
-let heart = document.getElementById("heart");
+let fill = document.getElementById("fill");
 let label = document.getElementById("label");
+let timerEl = document.getElementById("timer");
 
 let running = false;
-let startTime;
+let seconds = 60;
 
 /* 🔊 CALMER VOICE */
 function speak(text) {
     let msg = new SpeechSynthesisUtterance(text);
     msg.rate = 0.65;
     msg.pitch = 0.7;
-    msg.volume = 1;
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
-}
-
-/* 🔔 END TONE */
-function endTone() {
-    let ctx = new (window.AudioContext || window.webkitAudioContext)();
-    let osc = ctx.createOscillator();
-    let gain = ctx.createGain();
-
-    osc.frequency.value = 432;
-    gain.gain.value = 0.1;
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start();
-    osc.stop(ctx.currentTime + 1.5);
 }
 
 function start() {
     document.getElementById("startScreen").style.display = "none";
     running = true;
-    startTime = Date.now();
-    intro();
-}
-
-async function intro() {
-    speak("Follow the heart. Breathe slowly.");
-    await sleep(2000);
+    countdown();
     breatheLoop();
 }
 
+/* ⏱ TIMER */
+function countdown() {
+    let interval = setInterval(() => {
+        seconds--;
+        timerEl.innerText = seconds;
+
+        if (seconds <= 0) {
+            clearInterval(interval);
+            endSession();
+        }
+    }, 1000);
+}
+
+/* 🫁 BREATH LOOP */
 async function breatheLoop() {
     while (running) {
-
-        let elapsed = (Date.now() - startTime) / 1000;
-
-        if (elapsed >= 60) {
-            endSession();
-            break;
-        }
 
         // INHALE
         label.innerText = "INHALE";
         speak("Inhale");
-        heart.style.transform = "scale(1.5)";
+        fill.style.transition = "height 4s linear";
+        fill.style.height = "100%";
         await sleep(4000);
-
-        // HOLD
-        label.innerText = "HOLD";
-        await sleep(800);
 
         // EXHALE
         label.innerText = "EXHALE";
         speak("Exhale");
-        heart.style.transform = "scale(1)";
+        fill.style.transition = "height 6s linear";
+        fill.style.height = "0%";
         await sleep(6000);
-
-        label.innerText = "";
-        await sleep(500);
     }
 }
 
+/* END */
 function endSession() {
     running = false;
-
-    label.innerText = "CALM";
-    speak("Well done. You are calm.");
-    endTone();
+    label.innerText = "Try again";
+    speak("Try again");
 
     let btn = document.createElement("button");
-    btn.innerText = "Continue";
-    btn.onclick = () => {
-        window.location.href = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-    };
+    btn.innerText = "Restart";
+    btn.onclick = () => location.reload();
 
     document.getElementById("app").appendChild(btn);
 }
