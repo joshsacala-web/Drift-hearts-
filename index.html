@@ -13,33 +13,43 @@ body {
     color: white;
 }
 
-/* 🌅 BACKGROUND IMAGE (ALWAYS WORKS) */
+/* 🌅 FAKE REALISTIC BEACH (NO INTERNET NEEDED) */
 .bg {
     position: fixed;
     inset: 0;
-    background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1600") center/cover no-repeat;
-    filter: brightness(0.8);
-    z-index: -3;
+    background:
+        linear-gradient(to top, #020617 0%, #0f172a 40%, #1e3a8a 70%, #f97316 100%);
 }
 
-/* 🎥 VIDEO OVERLAY (optional enhancement) */
-video {
-    position: fixed;
-    inset: 0;
+/* 🌊 OCEAN LAYER */
+.ocean {
+    position: absolute;
+    bottom: 0;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0.5; /* blends with image */
-    z-index: -2;
+    height: 40%;
+    background: linear-gradient(to top, rgba(0,100,200,0.6), transparent);
 }
 
-/* DARK OVERLAY */
+/* subtle wave motion */
+.ocean::before {
+    content: "";
+    position: absolute;
+    width: 200%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.15), transparent 70%);
+    animation: wave 10s linear infinite;
+}
+
+@keyframes wave {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+/* overlay */
 .overlay {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.35);
-    backdrop-filter: blur(4px);
-    z-index: -1;
 }
 
 /* APP */
@@ -59,8 +69,6 @@ video {
     filter: drop-shadow(0 0 40px rgba(255,80,80,0.9));
 }
 
-.heart svg { width: 100%; }
-
 /* TEXT */
 #label {
     margin-top: 30px;
@@ -77,7 +85,7 @@ video {
     display: inline-block;
 }
 
-/* START SCREEN */
+/* START */
 #startScreen {
     position: absolute;
     inset: 0;
@@ -88,14 +96,12 @@ video {
     align-items: center;
 }
 
-/* BUTTONS */
 button {
     margin-top: 12px;
     padding: 12px 26px;
     border-radius: 10px;
     border: none;
     font-size: 16px;
-    cursor: pointer;
 }
 
 #startBtn { background: #ef4444; color: white; }
@@ -107,31 +113,21 @@ button {
 <body>
 
 <div class="bg"></div>
-
-<!-- video (will fail silently if blocked, image still shows) -->
-<video autoplay muted loop playsinline>
-    <source src="https://assets.mixkit.co/videos/preview/mixkit-waves-coming-to-the-beach-5016-large.mp4" type="video/mp4">
-</video>
-
+<div class="ocean"></div>
 <div class="overlay"></div>
 
-<audio id="ocean" loop>
+<audio id="oceanSound" loop>
     <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b4c9d.mp3">
 </audio>
 
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
-    <p>Follow the rhythm</p>
     <button id="startBtn" onclick="start()">Start</button>
     <button id="soundBtn" onclick="toggleSound()">Sound: ON</button>
 </div>
 
 <div id="app">
-    <div class="heart" id="heart">
-        <svg viewBox="0 0 24 24" fill="#ff4d4d">
-            <path d="M12 21s-6-4.35-9-8.5S3 3 7.5 3C9.5 3 12 5 12 5s2.5-2 4.5-2C21 3 21 8 21 12.5S12 21 12 21z"/>
-        </svg>
-    </div>
+    <div class="heart" id="heart">❤️</div>
     <div id="label">READY</div>
     <div class="panel">4s inhale • 6s exhale</div>
 </div>
@@ -140,7 +136,7 @@ button {
 
 let heart = document.getElementById("heart");
 let label = document.getElementById("label");
-let ocean = document.getElementById("ocean");
+let oceanSound = document.getElementById("oceanSound");
 
 let running = false;
 let soundOn = true;
@@ -159,8 +155,8 @@ function toggleSound() {
     document.getElementById("soundBtn").innerText =
         "Sound: " + (soundOn ? "ON" : "OFF");
 
-    if (!soundOn) ocean.pause();
-    else ocean.play();
+    if (!soundOn) oceanSound.pause();
+    else oceanSound.play();
 }
 
 function start() {
@@ -168,8 +164,8 @@ function start() {
     running = true;
 
     if (soundOn) {
-        ocean.volume = 0.4;
-        ocean.play();
+        oceanSound.volume = 0.4;
+        oceanSound.play();
     }
 
     intro();
@@ -189,16 +185,11 @@ async function breatheLoop() {
         heart.style.transform = "scale(1.6)";
         await sleep(4000);
 
-        label.innerText = "HOLD";
-        await sleep(800);
-
         label.innerText = "EXHALE";
         speak("Exhale");
         heart.style.transform = "scale(1)";
         await sleep(6000);
 
-        label.innerText = "";
-        await sleep(500);
     }
 }
 
