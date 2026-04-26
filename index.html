@@ -3,39 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calm Heart – Guided Breathing</title>
+<title>Calm Heart</title>
 
 <style>
-body {
+* {
     margin: 0;
-    overflow: hidden;
-    font-family: -apple-system, Arial, sans-serif;
-    color: white;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
-/* 🌅 BACKGROUND (reliable) */
+body {
+    font-family: Arial, sans-serif;
+    color: white;
+    overflow: hidden;
+}
+
+/* 🌊 REAL BEACH BACKGROUND */
 .bg {
     position: fixed;
     inset: 0;
-    background: linear-gradient(to top, #020617, #0a1a2f 40%, #1e3a8a 70%, #f97316);
-    filter: brightness(0.85);
+    background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e") no-repeat center center/cover;
+    filter: brightness(0.7);
 }
 
-/* 🌊 OCEAN */
-.ocean {
+/* DARK OVERLAY */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+}
+
+/* ECG LINE */
+.ecg {
     position: absolute;
-    bottom: 0;
-    width: 100%;
-    height: 45%;
-    background: linear-gradient(to top, rgba(0,100,200,0.5), transparent);
+    bottom: 40%;
+    width: 200%;
+    height: 100px;
+    border-top: 2px solid rgba(255,255,255,0.7);
+    animation: ecgMove 6s linear infinite;
+    opacity: 0.5;
+}
+
+@keyframes ecgMove {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
 }
 
 /* APP */
 #app {
     position: absolute;
-    top: 26%;
+    top: 28%;
     width: 100%;
     text-align: center;
+    z-index: 2;
 }
 
 /* ❤️ HEART */
@@ -55,28 +77,39 @@ body {
     border-radius: 50% 50% 0 0;
 }
 
-/* outline */
-svg { position: absolute; inset: 0; }
+svg {
+    position: absolute;
+    inset: 0;
+}
 
 /* TEXT */
-#label { margin-top: 20px; font-size: 26px; letter-spacing: 1px; }
-#timer { margin-top: 6px; font-size: 18px; opacity: 0.7; }
-
-/* CONTROLS */
-.controls {
-    margin-top: 15px;
+#label {
+    margin-top: 20px;
+    font-size: 26px;
 }
+
+#feedback {
+    margin-top: 6px;
+    font-size: 16px;
+    opacity: 0.8;
+}
+
+#timer {
+    margin-top: 6px;
+    opacity: 0.6;
+}
+
+/* BUTTONS */
 button {
-    margin: 5px;
-    padding: 10px 18px;
+    margin-top: 15px;
+    padding: 10px 20px;
     border-radius: 8px;
     border: none;
-    font-size: 14px;
+    background: #ef4444;
+    color: white;
 }
-.primary { background: #ef4444; color: white; }
-.secondary { background: #334155; color: white; }
 
-/* START */
+/* START SCREEN */
 #startScreen {
     position: absolute;
     inset: 0;
@@ -85,30 +118,22 @@ button {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    z-index: 5;
 }
-.note {
-    max-width: 320px;
-    font-size: 13px;
-    opacity: 0.7;
-    margin-top: 10px;
-    text-align: center;
-}
+
 </style>
 </head>
 
 <body>
 
 <div class="bg"></div>
-<div class="ocean"></div>
+<div class="overlay"></div>
+<div class="ecg"></div>
 
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
-    <p>Slow breathing can help reduce symptoms</p>
-    <button class="primary" onclick="start()">Start</button>
-    <div class="note">
-        This tool supports relaxation. It is not a medical device.
-        If you have severe symptoms, seek medical care.
-    </div>
+    <p>Follow the rhythm</p>
+    <button onclick="start()">Start</button>
 </div>
 
 <div id="app">
@@ -120,46 +145,41 @@ button {
     </div>
 
     <div id="label">READY</div>
+    <div id="feedback"></div>
     <div id="timer">60</div>
-
-    <div class="controls">
-        <button class="secondary" onclick="pause()">Pause</button>
-        <button class="secondary" onclick="resume()">Resume</button>
-        <button class="secondary" onclick="stop()">Stop</button>
-    </div>
 </div>
 
 <script>
 
 let fill = document.getElementById("fill");
 let label = document.getElementById("label");
+let feedback = document.getElementById("feedback");
 let timerEl = document.getElementById("timer");
 
 let running = false;
-let paused = false;
 let startTime = 0;
-let pauseTime = 0;
 let total = 60;
 
-/* 🔊 SOFT TONE */
+/* 🔊 CALM SOUND */
 let ctx = new (window.AudioContext || window.webkitAudioContext)();
 let osc = ctx.createOscillator();
 let gain = ctx.createGain();
-osc.frequency.value = 110;
+
+osc.frequency.value = 100;
 gain.gain.value = 0;
+
 osc.connect(gain);
 gain.connect(ctx.destination);
 osc.start();
 
-/* 📳 HAPTICS */
-function vibrate(pattern) {
-    if (navigator.vibrate) navigator.vibrate(pattern);
+/* 📳 VIBRATION */
+function vibrate(p) {
+    if (navigator.vibrate) navigator.vibrate(p);
 }
 
 function start() {
     document.getElementById("startScreen").style.display = "none";
     running = true;
-    paused = false;
     startTime = performance.now();
 
     gain.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 2);
@@ -167,29 +187,8 @@ function start() {
     loop();
 }
 
-function pause() {
-    if (!running) return;
-    paused = true;
-    pauseTime = performance.now();
-}
-
-function resume() {
-    if (!paused) return;
-    paused = false;
-    let now = performance.now();
-    startTime += (now - pauseTime);
-    loop();
-}
-
-function stop() {
-    running = false;
-    label.innerText = "Stopped";
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1);
-}
-
-/* 🫁 MAIN LOOP */
 function loop() {
-    if (!running || paused) return;
+    if (!running) return;
 
     let now = performance.now();
     let elapsed = (now - startTime) / 1000;
@@ -202,18 +201,28 @@ function loop() {
         return;
     }
 
-    // 4s inhale / 6s exhale
     let cycle = elapsed % 10;
 
+    /* 🫁 BREATHING */
     if (cycle < 4) {
         label.innerText = "Inhale";
         fill.style.height = (cycle / 4) * 100 + "%";
+        feedback.innerText = "You’re taking control";
         vibrate(10);
     } else {
         label.innerText = "Exhale";
         let t = (cycle - 4) / 6;
         fill.style.height = (1 - t) * 100 + "%";
+        feedback.innerText = "Slowing down…";
         vibrate([5,20,5]);
+    }
+
+    /* 🧠 PROGRESSION FEEDBACK */
+    if (elapsed > 20 && elapsed < 40) {
+        feedback.innerText = "Stabilizing…";
+    }
+    if (elapsed > 40) {
+        feedback.innerText = "You’re steady now";
     }
 
     requestAnimationFrame(loop);
@@ -222,13 +231,12 @@ function loop() {
 function endSession() {
     running = false;
 
-    label.innerText = "Session complete";
-    timerEl.innerText = "";
+    label.innerText = "Calm restored";
+    feedback.innerText = "";
 
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2);
 
     let btn = document.createElement("button");
-    btn.className = "primary";
     btn.innerText = "Try again";
     btn.onclick = () => location.reload();
 
