@@ -1,219 +1,191 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Saxson 2</title>
+<title>Calm Heart</title>
 
 <style>
-body{
-  margin:0;
-  background:#000;
-  color:white;
-  font-family:Arial;
-  text-align:center;
+body {
+    margin: 0;
+    background: radial-gradient(circle at center, #020617, #000);
+    font-family: Arial, sans-serif;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
 }
 
-h2{
-  color:gold;
-  text-shadow:0 0 10px gold;
+#app { text-align: center; }
+
+/* HEART */
+.heart {
+    width: 170px;
+    height: 170px;
+    margin: auto;
+    transform: scale(1);
+    transition: transform linear;
+    filter: drop-shadow(0 0 25px rgba(255,80,80,0.6));
 }
 
-#game{
-  max-width:420px;
-  margin:auto;
+.heart svg {
+    width: 100%;
+    height: 100%;
 }
 
-#reels{
-  display:flex;
-  gap:6px;
-  padding:10px;
+/* GLOW */
+@keyframes glow {
+    0% { filter: drop-shadow(0 0 10px rgba(255,80,80,0.3)); }
+    50% { filter: drop-shadow(0 0 40px rgba(255,80,80,0.9)); }
+    100% { filter: drop-shadow(0 0 10px rgba(255,80,80,0.3)); }
 }
 
-.reel{
-  flex:1;
-  height:240px;
-  overflow:hidden;
-  border-radius:10px;
-  border:2px solid gold;
-  background:linear-gradient(#222,#000);
-  box-shadow:0 0 10px gold;
+.glow {
+    animation: glow 4s ease-in-out infinite;
 }
 
-.symbol{
-  height:80px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:30px;
-  border-bottom:1px solid #111;
+#label {
+    margin-top: 40px;
+    font-size: 32px;
+    letter-spacing: 3px;
 }
 
-#panel{
-  display:flex;
-  justify-content:space-between;
-  padding:10px;
+#overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
 }
 
-button{
-  padding:10px;
-  background:gold;
-  border:none;
-  border-radius:6px;
-  font-weight:bold;
+button {
+    margin-top: 15px;
+    padding: 14px 28px;
+    border-radius: 10px;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
 }
+
+#startBtn { background: #ef4444; color: white; }
+#soundBtn { background: #334155; color: white; }
+
 </style>
 </head>
 
 <body>
 
-<div id="game">
-<h2>SAXSON 2</h2>
-
-<div id="reels"></div>
-
-<div id="panel">
-<div id="balance">$100.00</div>
-<div id="info">x1</div>
-<button onclick="spin()">SPIN</button>
+<div id="overlay">
+    <h1>Calm Your Heart</h1>
+    <p>Follow the rhythm</p>
+    <button id="startBtn" onclick="start()">Start</button>
+    <button id="soundBtn" onclick="toggleSound()">Sound: ON</button>
 </div>
+
+<div id="app">
+    <div class="heart glow" id="heart">
+        <svg viewBox="0 0 24 24" fill="#ff4d4d">
+            <path d="M12 21s-6-4.35-9-8.5S3 3 7.5 3C9.5 3 12 5 12 5s2.5-2 4.5-2C21 3 21 8 21 12.5S12 21 12 21z"/>
+        </svg>
+    </div>
+    <div id="label">READY</div>
 </div>
 
 <script>
-let balance = 100;
-let bet = 0.5;
-let reels = [];
-let symbols = ["💀","🎸","🔥","🛞","⚡","W"];
-let inBonus = false;
-let multiplier = 1;
-let sticky = [];
 
-function build(){
-  let r = document.getElementById("reels");
-  r.innerHTML="";
-  reels=[];
+let heart = document.getElementById("heart");
+let label = document.getElementById("label");
 
-  for(let i=0;i<5;i++){
-    let reel = document.createElement("div");
-    reel.className="reel";
+let running = false;
+let soundOn = true;
 
-    let arr=[];
-    for(let j=0;j<3;j++){
-      let s = document.createElement("div");
-      s.className="symbol";
-      s.innerText = symbols[Math.floor(Math.random()*symbols.length)];
-      reel.appendChild(s);
-      arr.push(s);
+/* 🎧 AUDIO ENGINE (no files needed) */
+let audioCtx;
+let gainNode;
+
+function initAudio() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    let oscillator = audioCtx.createOscillator();
+    gainNode = audioCtx.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.value = 110; // deep calming tone
+
+    gainNode.gain.value = 0.02; // very soft
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.start();
+}
+
+/* 🔊 VOICE */
+function speak(text) {
+    if (!soundOn) return;
+
+    let msg = new SpeechSynthesisUtterance(text);
+    msg.rate = 0.85;
+    msg.pitch = 0.9;
+    msg.volume = 0.8;
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(msg);
+}
+
+function toggleSound() {
+    soundOn = !soundOn;
+    document.getElementById("soundBtn").innerText =
+        "Sound: " + (soundOn ? "ON" : "OFF");
+
+    if (gainNode) {
+        gainNode.gain.value = soundOn ? 0.02 : 0;
     }
-
-    r.appendChild(reel);
-    reels.push(arr);
-  }
 }
 
-function spin(){
-  if(balance < bet) return;
+function start() {
+    document.getElementById("overlay").style.display = "none";
+    running = true;
 
-  balance -= bet;
-  document.getElementById("balance").innerText="$"+balance.toFixed(2);
+    initAudio(); // start ambient tone
+    breatheLoop();
+}
 
-  for(let i=0;i<5;i++){
-    for(let j=0;j<3;j++){
-      let rand = symbols[Math.floor(Math.random()*symbols.length)];
+async function breatheLoop() {
+    while (running) {
 
-      if(inBonus && sticky[i+"-"+j]){
-        rand = "W";
-      }
+        // INHALE
+        label.innerText = "INHALE";
+        speak("Inhale");
+        heart.style.transition = "transform 4s ease-in-out";
+        heart.style.transform = "scale(1.5)";
+        await sleep(4000);
 
-      reels[i][j].innerText = rand;
+        // HOLD
+        label.innerText = "HOLD";
+        await sleep(800);
+
+        // EXHALE
+        label.innerText = "EXHALE";
+        speak("Exhale");
+        heart.style.transition = "transform 6s ease-in-out";
+        heart.style.transform = "scale(1)";
+        await sleep(6000);
+
+        label.innerText = "";
+        await sleep(500);
     }
-  }
-
-  checkWin();
 }
 
-function checkWin(){
-  let center = reels.map(r=>r[1].innerText);
-
-  let first = center[0];
-  let count = 1;
-
-  for(let i=1;i<center.length;i++){
-    if(center[i]===first || center[i]==="W"){
-      count++;
-    } else break;
-  }
-
-  if(count>=3){
-    let win = count * bet * multiplier * 2;
-    balance += win;
-
-    document.getElementById("balance").innerText="$"+balance.toFixed(2);
-
-    if(inBonus){
-      multiplier++;
-    }
-
-    flash();
-  }
-
-  checkBonus();
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
 }
 
-function checkBonus(){
-  let r2 = reels[1][1].innerText;
-  let r4 = reels[3][1].innerText;
-
-  if(r2==="🔥" && r4==="🛞"){
-    startBonus();
-  }
-}
-
-function startBonus(){
-  inBonus = true;
-  multiplier = 1;
-  sticky = {};
-
-  let spins = Math.floor(Math.random()*10)+5;
-
-  alert("BONUS "+spins+" spins");
-
-  let interval = setInterval(()=>{
-    if(spins<=0){
-      inBonus=false;
-      clearInterval(interval);
-      return;
-    }
-
-    for(let i=0;i<5;i++){
-      for(let j=0;j<3;j++){
-        let rand = symbols[Math.floor(Math.random()*symbols.length)];
-
-        if(rand==="W"){
-          sticky[i+"-"+j]=true;
-        }
-
-        if(sticky[i+"-"+j]){
-          rand="W";
-        }
-
-        reels[i][j].innerText = rand;
-      }
-    }
-
-    checkWin();
-    spins--;
-
-  },800);
-}
-
-function flash(){
-  document.querySelectorAll(".reel").forEach(r=>{
-    r.style.boxShadow="0 0 25px gold";
-    setTimeout(()=>r.style.boxShadow="0 0 10px gold",300);
-  });
-}
-
-build();
 </script>
 
 </body>
