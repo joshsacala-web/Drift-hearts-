@@ -13,30 +13,32 @@ body {
     color: white;
 }
 
-/* 🎥 VIDEO BACKGROUND */
+/* 🌅 BACKGROUND IMAGE (ALWAYS WORKS) */
+.bg {
+    position: fixed;
+    inset: 0;
+    background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1600") center/cover no-repeat;
+    filter: brightness(0.8);
+    z-index: -3;
+}
+
+/* 🎥 VIDEO OVERLAY (optional enhancement) */
 video {
     position: fixed;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    opacity: 0.5; /* blends with image */
     z-index: -2;
 }
 
-/* fallback gradient if video fails */
-.fallback {
-    position: fixed;
-    inset: 0;
-    background: radial-gradient(circle, #0f172a, #020617);
-    z-index: -3;
-}
-
-/* dark glass overlay */
+/* DARK OVERLAY */
 .overlay {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.35);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(4px);
     z-index: -1;
 }
 
@@ -48,12 +50,12 @@ video {
     text-align: center;
 }
 
-/* ❤️ HEART */
+/* HEART */
 .heart {
     width: 180px;
     margin: auto;
     transform: scale(1);
-    transition: transform cubic-bezier(.4,0,.2,1);
+    transition: transform 0.3s ease;
     filter: drop-shadow(0 0 40px rgba(255,80,80,0.9));
 }
 
@@ -62,14 +64,14 @@ video {
 /* TEXT */
 #label {
     margin-top: 30px;
-    font-size: 36px;
+    font-size: 34px;
     letter-spacing: 4px;
 }
 
-/* UI PANEL */
+/* PANEL */
 .panel {
     margin-top: 20px;
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.1);
     padding: 10px 20px;
     border-radius: 12px;
     display: inline-block;
@@ -104,10 +106,11 @@ button {
 
 <body>
 
-<div class="fallback"></div>
+<div class="bg"></div>
 
-<video autoplay muted loop playsinline id="bgVideo">
-    <source src="https://cdn.coverr.co/videos/coverr-aerial-view-of-waves-1573/1080p.mp4" type="video/mp4">
+<!-- video (will fail silently if blocked, image still shows) -->
+<video autoplay muted loop playsinline>
+    <source src="https://assets.mixkit.co/videos/preview/mixkit-waves-coming-to-the-beach-5016-large.mp4" type="video/mp4">
 </video>
 
 <div class="overlay"></div>
@@ -142,7 +145,6 @@ let ocean = document.getElementById("ocean");
 let running = false;
 let soundOn = true;
 
-/* 🔊 VOICE */
 function speak(text) {
     if (!soundOn) return;
     let msg = new SpeechSynthesisUtterance(text);
@@ -150,11 +152,6 @@ function speak(text) {
     msg.pitch = 0.8;
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
-}
-
-/* 📳 VIBRATION */
-function vibrate(ms) {
-    if (navigator.vibrate) navigator.vibrate(ms);
 }
 
 function toggleSound() {
@@ -187,22 +184,17 @@ async function intro() {
 async function breatheLoop() {
     while (running) {
 
-        // INHALE
         label.innerText = "INHALE";
         speak("Inhale");
         heart.style.transform = "scale(1.6)";
-        vibrate(50);
         await sleep(4000);
 
-        // HOLD
         label.innerText = "HOLD";
         await sleep(800);
 
-        // EXHALE
         label.innerText = "EXHALE";
         speak("Exhale");
         heart.style.transform = "scale(1)";
-        vibrate([30, 50, 30]);
         await sleep(6000);
 
         label.innerText = "";
