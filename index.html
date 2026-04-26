@@ -3,67 +3,58 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calm Heart</title>
+<title>Calm Heart Immersive</title>
 
 <style>
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    -webkit-user-select: none;
     user-select: none;
 }
 
 body {
     font-family: Arial, sans-serif;
-    color: white;
     overflow: hidden;
+    color: white;
 }
 
-/* 🌊 REAL BEACH BACKGROUND */
+/* 🌊 BEACH */
 .bg {
     position: fixed;
     inset: 0;
-    background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e") no-repeat center center/cover;
-    filter: brightness(0.7);
+    background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e") no-repeat center/cover;
+    filter: brightness(0.75);
 }
 
-/* DARK OVERLAY */
+/* OVERLAY */
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.35);
+    background: rgba(0,0,0,0.3);
 }
 
-/* ECG LINE */
-.ecg {
+/* 🌊 WAVE */
+.wave {
     position: absolute;
-    bottom: 40%;
+    bottom: -20%;
     width: 200%;
-    height: 100px;
-    border-top: 2px solid rgba(255,255,255,0.7);
-    animation: ecgMove 6s linear infinite;
-    opacity: 0.5;
-}
-
-@keyframes ecgMove {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
-}
-
-/* APP */
-#app {
-    position: absolute;
-    top: 28%;
-    width: 100%;
-    text-align: center;
-    z-index: 2;
+    height: 50%;
+    background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.25), transparent 70%);
+    transition: transform 2s ease;
 }
 
 /* ❤️ HEART */
+.heart-container {
+    position: absolute;
+    top: 25%;
+    width: 100%;
+    text-align: center;
+}
+
 .heart {
-    width: 160px;
-    height: 160px;
+    width: 140px;
+    height: 140px;
     margin: auto;
     position: relative;
 }
@@ -83,23 +74,22 @@ svg {
 }
 
 /* TEXT */
-#label {
-    margin-top: 20px;
-    font-size: 26px;
+#label { font-size: 28px; margin-top: 20px; }
+#feedback { opacity: 0.85; margin-top: 6px; }
+#timer { opacity: 0.6; margin-top: 5px; }
+
+/* START */
+#startScreen {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
-#feedback {
-    margin-top: 6px;
-    font-size: 16px;
-    opacity: 0.8;
-}
-
-#timer {
-    margin-top: 6px;
-    opacity: 0.6;
-}
-
-/* BUTTONS */
+/* BUTTON */
 button {
     margin-top: 15px;
     padding: 10px 20px;
@@ -109,18 +99,6 @@ button {
     color: white;
 }
 
-/* START SCREEN */
-#startScreen {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 5;
-}
-
 </style>
 </head>
 
@@ -128,15 +106,14 @@ button {
 
 <div class="bg"></div>
 <div class="overlay"></div>
-<div class="ecg"></div>
+<div class="wave" id="wave"></div>
 
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
-    <p>Follow the rhythm</p>
     <button onclick="start()">Start</button>
 </div>
 
-<div id="app">
+<div class="heart-container">
     <div class="heart">
         <div class="fill" id="fill"></div>
         <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
@@ -155,35 +132,25 @@ let fill = document.getElementById("fill");
 let label = document.getElementById("label");
 let feedback = document.getElementById("feedback");
 let timerEl = document.getElementById("timer");
+let wave = document.getElementById("wave");
 
 let running = false;
-let startTime = 0;
+let startTime;
 let total = 60;
 
-/* 🔊 CALM SOUND */
-let ctx = new (window.AudioContext || window.webkitAudioContext)();
-let osc = ctx.createOscillator();
-let gain = ctx.createGain();
-
-osc.frequency.value = 100;
-gain.gain.value = 0;
-
-osc.connect(gain);
-gain.connect(ctx.destination);
-osc.start();
-
-/* 📳 VIBRATION */
-function vibrate(p) {
-    if (navigator.vibrate) navigator.vibrate(p);
+/* 🎧 VOICE */
+function speak(text) {
+    let msg = new SpeechSynthesisUtterance(text);
+    msg.rate = 0.85;
+    msg.pitch = 0.9;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(msg);
 }
 
 function start() {
     document.getElementById("startScreen").style.display = "none";
     running = true;
     startTime = performance.now();
-
-    gain.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 2);
-
     loop();
 }
 
@@ -203,26 +170,29 @@ function loop() {
 
     let cycle = elapsed % 10;
 
-    /* 🫁 BREATHING */
     if (cycle < 4) {
         label.innerText = "Inhale";
+
         fill.style.height = (cycle / 4) * 100 + "%";
-        feedback.innerText = "You’re taking control";
-        vibrate(10);
+        wave.style.transform = "translateY(-60px)";
+
+        if (Math.floor(cycle) === 0) speak("Inhale");
+
+        feedback.innerText = "Let the wave lift you";
     } else {
         label.innerText = "Exhale";
+
         let t = (cycle - 4) / 6;
         fill.style.height = (1 - t) * 100 + "%";
-        feedback.innerText = "Slowing down…";
-        vibrate([5,20,5]);
+        wave.style.transform = "translateY(40px)";
+
+        if (Math.floor(cycle) === 4) speak("Exhale");
+
+        feedback.innerText = "Let it drift away";
     }
 
-    /* 🧠 PROGRESSION FEEDBACK */
-    if (elapsed > 20 && elapsed < 40) {
-        feedback.innerText = "Stabilizing…";
-    }
     if (elapsed > 40) {
-        feedback.innerText = "You’re steady now";
+        feedback.innerText = "You're steady now";
     }
 
     requestAnimationFrame(loop);
@@ -231,16 +201,25 @@ function loop() {
 function endSession() {
     running = false;
 
-    label.innerText = "Calm restored";
-    feedback.innerText = "";
+    let messages = [
+        "You're back in control",
+        "Your body is settling",
+        "Keep this rhythm with you"
+    ];
 
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2);
+    let msg = messages[Math.floor(Math.random() * messages.length)];
+
+    label.innerText = msg;
+    feedback.innerText = "";
+    timerEl.innerText = "";
+
+    speak(msg);
 
     let btn = document.createElement("button");
     btn.innerText = "Try again";
     btn.onclick = () => location.reload();
 
-    document.getElementById("app").appendChild(btn);
+    document.body.appendChild(btn);
 }
 
 </script>
