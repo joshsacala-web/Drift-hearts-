@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calm Heart - Beach</title>
+<title>Calm Heart Ultra</title>
 
 <style>
 body {
     margin: 0;
     overflow: hidden;
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, Arial, sans-serif;
     color: white;
 }
 
@@ -23,11 +23,20 @@ video {
     z-index: -2;
 }
 
-/* DARK OVERLAY FOR READABILITY */
-.overlay-dark {
+/* fallback gradient if video fails */
+.fallback {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, #0f172a, #020617);
+    z-index: -3;
+}
+
+/* dark glass overlay */
+.overlay {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(6px);
     z-index: -1;
 }
 
@@ -39,41 +48,48 @@ video {
     text-align: center;
 }
 
-/* HEART */
+/* ❤️ HEART */
 .heart {
     width: 180px;
     margin: auto;
     transform: scale(1);
-    transition: transform linear;
-    filter: drop-shadow(0 0 35px rgba(255,80,80,0.9));
+    transition: transform cubic-bezier(.4,0,.2,1);
+    filter: drop-shadow(0 0 40px rgba(255,80,80,0.9));
 }
 
-.heart svg {
-    width: 100%;
-}
+.heart svg { width: 100%; }
 
 /* TEXT */
 #label {
     margin-top: 30px;
-    font-size: 34px;
+    font-size: 36px;
     letter-spacing: 4px;
-    text-shadow: 0 0 10px rgba(0,0,0,0.6);
+}
+
+/* UI PANEL */
+.panel {
+    margin-top: 20px;
+    background: rgba(255,255,255,0.08);
+    padding: 10px 20px;
+    border-radius: 12px;
+    display: inline-block;
 }
 
 /* START SCREEN */
 #startScreen {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.55);
+    background: rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
 }
 
+/* BUTTONS */
 button {
-    margin-top: 15px;
-    padding: 14px 28px;
+    margin-top: 12px;
+    padding: 12px 26px;
     border-radius: 10px;
     border: none;
     font-size: 16px;
@@ -88,27 +104,25 @@ button {
 
 <body>
 
-<!-- 🎥 VIDEO (royalty-free beach) -->
+<div class="fallback"></div>
+
 <video autoplay muted loop playsinline id="bgVideo">
     <source src="https://cdn.coverr.co/videos/coverr-aerial-view-of-waves-1573/1080p.mp4" type="video/mp4">
 </video>
 
-<div class="overlay-dark"></div>
+<div class="overlay"></div>
 
-<!-- 🌊 REAL OCEAN AUDIO -->
-<audio id="oceanAudio" loop>
-    <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b4c9d.mp3" type="audio/mpeg">
+<audio id="ocean" loop>
+    <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b4c9d.mp3">
 </audio>
 
-<!-- START -->
 <div id="startScreen">
     <h1>Calm Your Heart</h1>
-    <p>Listen. Follow. Breathe.</p>
+    <p>Follow the rhythm</p>
     <button id="startBtn" onclick="start()">Start</button>
     <button id="soundBtn" onclick="toggleSound()">Sound: ON</button>
 </div>
 
-<!-- APP -->
 <div id="app">
     <div class="heart" id="heart">
         <svg viewBox="0 0 24 24" fill="#ff4d4d">
@@ -116,13 +130,14 @@ button {
         </svg>
     </div>
     <div id="label">READY</div>
+    <div class="panel">4s inhale • 6s exhale</div>
 </div>
 
 <script>
 
 let heart = document.getElementById("heart");
 let label = document.getElementById("label");
-let ocean = document.getElementById("oceanAudio");
+let ocean = document.getElementById("ocean");
 
 let running = false;
 let soundOn = true;
@@ -130,13 +145,16 @@ let soundOn = true;
 /* 🔊 VOICE */
 function speak(text) {
     if (!soundOn) return;
-
     let msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 0.75;
+    msg.rate = 0.7;
     msg.pitch = 0.8;
-
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
+}
+
+/* 📳 VIBRATION */
+function vibrate(ms) {
+    if (navigator.vibrate) navigator.vibrate(ms);
 }
 
 function toggleSound() {
@@ -172,8 +190,8 @@ async function breatheLoop() {
         // INHALE
         label.innerText = "INHALE";
         speak("Inhale");
-        heart.style.transition = "transform 4s ease-in-out";
         heart.style.transform = "scale(1.6)";
+        vibrate(50);
         await sleep(4000);
 
         // HOLD
@@ -183,8 +201,8 @@ async function breatheLoop() {
         // EXHALE
         label.innerText = "EXHALE";
         speak("Exhale");
-        heart.style.transition = "transform 6s ease-in-out";
         heart.style.transform = "scale(1)";
+        vibrate([30, 50, 30]);
         await sleep(6000);
 
         label.innerText = "";
