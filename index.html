@@ -6,97 +6,75 @@
 <title>Calm Heart Immersive</title>
 
 <style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    user-select: none;
-}
-
 body {
-    font-family: Arial, sans-serif;
+    margin: 0;
     overflow: hidden;
+    font-family: Arial, sans-serif;
     color: white;
 }
 
-/* 🌊 BEACH */
+/* 🌊 BACKGROUND */
 .bg {
     position: fixed;
     inset: 0;
     background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e") no-repeat center/cover;
-    filter: brightness(0.75);
+    filter: brightness(0.7);
 }
 
-/* OVERLAY */
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.3);
+    background: rgba(0,0,0,0.35);
 }
 
 /* 🌊 WAVE */
 .wave {
     position: absolute;
-    bottom: -20%;
+    bottom: 0;
     width: 200%;
-    height: 50%;
-    background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.25), transparent 70%);
-    transition: transform 2s ease;
+    height: 200px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 40%;
+    animation: waveFlow 8s linear infinite;
+}
+
+@keyframes waveFlow {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
 }
 
 /* ❤️ HEART */
-.heart-container {
-    position: absolute;
-    top: 25%;
-    width: 100%;
-    text-align: center;
-}
-
 .heart {
-    width: 140px;
-    height: 140px;
-    margin: auto;
-    position: relative;
-}
-
-.fill {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    height: 0%;
-    background: linear-gradient(to top, #ff4d4d, #ff9999);
-    border-radius: 50% 50% 0 0;
-}
-
-svg {
-    position: absolute;
-    inset: 0;
+    font-size: 120px;
+    text-align: center;
+    margin-top: 30vh;
+    transition: transform 0.15s ease;
+    filter: drop-shadow(0 0 25px rgba(255,60,60,0.9));
 }
 
 /* TEXT */
-#label { font-size: 28px; margin-top: 20px; }
-#feedback { opacity: 0.85; margin-top: 6px; }
-#timer { opacity: 0.6; margin-top: 5px; }
+#label { text-align:center; font-size:28px; margin-top:10px; }
+#feedback { text-align:center; opacity:0.8; }
+#timer { text-align:center; opacity:0.6; }
 
 /* START */
 #startScreen {
     position: absolute;
     inset: 0;
     background: rgba(0,0,0,0.6);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
 }
 
-/* BUTTON */
 button {
-    margin-top: 15px;
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: none;
-    background: #ef4444;
-    color: white;
+    margin-top:15px;
+    padding:10px 20px;
+    border:none;
+    border-radius:8px;
+    background:#ef4444;
+    color:white;
 }
 
 </style>
@@ -113,42 +91,77 @@ button {
     <button onclick="start()">Start</button>
 </div>
 
-<div class="heart-container">
-    <div class="heart">
-        <div class="fill" id="fill"></div>
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-            <path d="M12 21s-6-4.35-9-8.5S3 3 7.5 3C9.5 3 12 5 12 5s2.5-2 4.5-2C21 3 21 8 21 12.5S12 21 12 21z"/>
-        </svg>
-    </div>
-
-    <div id="label">READY</div>
-    <div id="feedback"></div>
-    <div id="timer">60</div>
-</div>
+<div class="heart" id="heart">❤️</div>
+<div id="label">READY</div>
+<div id="feedback"></div>
+<div id="timer">60</div>
 
 <script>
 
-let fill = document.getElementById("fill");
+let heart = document.getElementById("heart");
 let label = document.getElementById("label");
 let feedback = document.getElementById("feedback");
 let timerEl = document.getElementById("timer");
-let wave = document.getElementById("wave");
+
+let ctx = new (window.AudioContext || window.webkitAudioContext)();
 
 let running = false;
 let startTime;
 let total = 60;
 
+/* 💓 HEARTBEAT SOUND */
+function heartbeat() {
+    let osc = ctx.createOscillator();
+    let gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.value = 60;
+
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+}
+
+/* 🌊 OCEAN SOUND */
+function ocean() {
+    let noise = ctx.createBufferSource();
+    let buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    let data = buffer.getChannelData(0);
+
+    for (let i = 0; i < data.length; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+
+    noise.buffer = buffer;
+
+    let gain = ctx.createGain();
+    gain.gain.value = 0.02;
+
+    noise.connect(gain);
+    gain.connect(ctx.destination);
+
+    noise.loop = true;
+    noise.start();
+}
+
 /* 🎧 VOICE */
 function speak(text) {
     let msg = new SpeechSynthesisUtterance(text);
     msg.rate = 0.85;
-    msg.pitch = 0.9;
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
 }
 
 function start() {
     document.getElementById("startScreen").style.display = "none";
+    ctx.resume();
+    ocean();
+
     running = true;
     startTime = performance.now();
     loop();
@@ -172,27 +185,24 @@ function loop() {
 
     if (cycle < 4) {
         label.innerText = "Inhale";
+        heart.style.transform = "scale(" + (1 + cycle * 0.12) + ")";
+        feedback.innerText = "Breathing in";
 
-        fill.style.height = (cycle / 4) * 100 + "%";
-        wave.style.transform = "translateY(-60px)";
+        if (Math.floor(cycle) === 0) {
+            speak("Inhale");
+            heartbeat();
+        }
 
-        if (Math.floor(cycle) === 0) speak("Inhale");
-
-        feedback.innerText = "Let the wave lift you";
     } else {
-        label.innerText = "Exhale";
-
         let t = (cycle - 4) / 6;
-        fill.style.height = (1 - t) * 100 + "%";
-        wave.style.transform = "translateY(40px)";
+        label.innerText = "Exhale";
+        heart.style.transform = "scale(" + (1.5 - t * 0.5) + ")";
+        feedback.innerText = "Let go";
 
-        if (Math.floor(cycle) === 4) speak("Exhale");
-
-        feedback.innerText = "Let it drift away";
-    }
-
-    if (elapsed > 40) {
-        feedback.innerText = "You're steady now";
+        if (Math.floor(cycle) === 4) {
+            speak("Exhale");
+            heartbeat();
+        }
     }
 
     requestAnimationFrame(loop);
@@ -201,22 +211,14 @@ function loop() {
 function endSession() {
     running = false;
 
-    let messages = [
-        "You're back in control",
-        "Your body is settling",
-        "Keep this rhythm with you"
-    ];
-
-    let msg = messages[Math.floor(Math.random() * messages.length)];
-
-    label.innerText = msg;
+    label.innerText = "You're back in control";
     feedback.innerText = "";
     timerEl.innerText = "";
 
-    speak(msg);
+    speak("You're back in control");
 
     let btn = document.createElement("button");
-    btn.innerText = "Try again";
+    btn.innerText = "Retry";
     btn.onclick = () => location.reload();
 
     document.body.appendChild(btn);
