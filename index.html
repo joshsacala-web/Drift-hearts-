@@ -3,64 +3,72 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calm Heart</title>
+<title>Calm Heart - Beach</title>
 
 <style>
 body {
     margin: 0;
-    background: radial-gradient(circle at center, #020617, #000);
+    overflow: hidden;
     font-family: Arial, sans-serif;
     color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
 }
 
-#app { text-align: center; }
+/* 🎥 VIDEO BACKGROUND */
+video {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: -2;
+}
+
+/* DARK OVERLAY FOR READABILITY */
+.overlay-dark {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: -1;
+}
+
+/* APP */
+#app {
+    position: absolute;
+    top: 35%;
+    width: 100%;
+    text-align: center;
+}
 
 /* HEART */
 .heart {
-    width: 170px;
-    height: 170px;
+    width: 180px;
     margin: auto;
     transform: scale(1);
     transition: transform linear;
-    filter: drop-shadow(0 0 25px rgba(255,80,80,0.6));
+    filter: drop-shadow(0 0 35px rgba(255,80,80,0.9));
 }
 
 .heart svg {
     width: 100%;
-    height: 100%;
 }
 
-/* GLOW */
-@keyframes glow {
-    0% { filter: drop-shadow(0 0 10px rgba(255,80,80,0.3)); }
-    50% { filter: drop-shadow(0 0 40px rgba(255,80,80,0.9)); }
-    100% { filter: drop-shadow(0 0 10px rgba(255,80,80,0.3)); }
-}
-
-.glow {
-    animation: glow 4s ease-in-out infinite;
-}
-
+/* TEXT */
 #label {
-    margin-top: 40px;
-    font-size: 32px;
-    letter-spacing: 3px;
+    margin-top: 30px;
+    font-size: 34px;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px rgba(0,0,0,0.6);
 }
 
-#overlay {
+/* START SCREEN */
+#startScreen {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.9);
+    background: rgba(0,0,0,0.55);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    z-index: 10;
 }
 
 button {
@@ -80,15 +88,29 @@ button {
 
 <body>
 
-<div id="overlay">
+<!-- 🎥 VIDEO (royalty-free beach) -->
+<video autoplay muted loop playsinline id="bgVideo">
+    <source src="https://cdn.coverr.co/videos/coverr-aerial-view-of-waves-1573/1080p.mp4" type="video/mp4">
+</video>
+
+<div class="overlay-dark"></div>
+
+<!-- 🌊 REAL OCEAN AUDIO -->
+<audio id="oceanAudio" loop>
+    <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9b4c9d.mp3" type="audio/mpeg">
+</audio>
+
+<!-- START -->
+<div id="startScreen">
     <h1>Calm Your Heart</h1>
-    <p>Follow the rhythm</p>
+    <p>Listen. Follow. Breathe.</p>
     <button id="startBtn" onclick="start()">Start</button>
     <button id="soundBtn" onclick="toggleSound()">Sound: ON</button>
 </div>
 
+<!-- APP -->
 <div id="app">
-    <div class="heart glow" id="heart">
+    <div class="heart" id="heart">
         <svg viewBox="0 0 24 24" fill="#ff4d4d">
             <path d="M12 21s-6-4.35-9-8.5S3 3 7.5 3C9.5 3 12 5 12 5s2.5-2 4.5-2C21 3 21 8 21 12.5S12 21 12 21z"/>
         </svg>
@@ -100,39 +122,18 @@ button {
 
 let heart = document.getElementById("heart");
 let label = document.getElementById("label");
+let ocean = document.getElementById("oceanAudio");
 
 let running = false;
 let soundOn = true;
-
-/* 🎧 AUDIO ENGINE (no files needed) */
-let audioCtx;
-let gainNode;
-
-function initAudio() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-    let oscillator = audioCtx.createOscillator();
-    gainNode = audioCtx.createGain();
-
-    oscillator.type = "sine";
-    oscillator.frequency.value = 110; // deep calming tone
-
-    gainNode.gain.value = 0.02; // very soft
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
-    oscillator.start();
-}
 
 /* 🔊 VOICE */
 function speak(text) {
     if (!soundOn) return;
 
     let msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 0.85;
-    msg.pitch = 0.9;
-    msg.volume = 0.8;
+    msg.rate = 0.75;
+    msg.pitch = 0.8;
 
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
@@ -143,16 +144,25 @@ function toggleSound() {
     document.getElementById("soundBtn").innerText =
         "Sound: " + (soundOn ? "ON" : "OFF");
 
-    if (gainNode) {
-        gainNode.gain.value = soundOn ? 0.02 : 0;
-    }
+    if (!soundOn) ocean.pause();
+    else ocean.play();
 }
 
 function start() {
-    document.getElementById("overlay").style.display = "none";
+    document.getElementById("startScreen").style.display = "none";
     running = true;
 
-    initAudio(); // start ambient tone
+    if (soundOn) {
+        ocean.volume = 0.4;
+        ocean.play();
+    }
+
+    intro();
+}
+
+async function intro() {
+    speak("Follow the heart");
+    await sleep(1500);
     breatheLoop();
 }
 
@@ -163,7 +173,7 @@ async function breatheLoop() {
         label.innerText = "INHALE";
         speak("Inhale");
         heart.style.transition = "transform 4s ease-in-out";
-        heart.style.transform = "scale(1.5)";
+        heart.style.transform = "scale(1.6)";
         await sleep(4000);
 
         // HOLD
